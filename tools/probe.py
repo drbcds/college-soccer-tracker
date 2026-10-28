@@ -65,8 +65,9 @@ try:
     cfg = site.json()
 except Exception:  # noqa: BLE001
     pass
-settings = cfg.get("settings") or {}
+settings = {**cfg, **(cfg.get("settings") or {})}
 gurl, tenant = settings.get("publicGraphqlUrl"), settings.get("tenantId")
+read_api = settings.get("readApiUrl")
 print("graphql:", gurl, "tenant:", tenant)
 
 # Every URL mentioned in the config (remote modules, APIs)
@@ -81,7 +82,8 @@ for i, u in enumerate(u for u in urls if re.search(r"remoteEntry|\.js(\?|$)|mf-m
         try:
             man = r.json()
             base = u.rsplit("/", 1)[0]
-            for j, a in enumerate(re.findall(r'"([^"]+\.js)"', json.dumps(man))[:40]):
+            assets = list(dict.fromkeys(re.findall(r'"([^"]+\.js)"', json.dumps(man))))
+            for j, a in enumerate(assets):
                 get(f"njcaa_remote_{i}_asset_{j}", urllib.parse.urljoin(base + "/", a))
         except Exception:  # noqa: BLE001
             pass
@@ -94,5 +96,10 @@ if gurl:
     gql("njcaa_gql_teams", gurl,
         "query($t: ID!) { listTeams(tenantId: $t, sport: \"soccer\", gender: \"men\", season: \"2026\", limit: 5) { id } }",
         {"t": tenant})
+
+if read_api:
+    for path in ("", "public/schedule?sport=msoc&season=2026-27", "schedule?sport=msoc&season=2026-27",
+                 f"public/tenants/{tenant}/schedule?sport=msoc", f"tenants/{tenant}/sports"):
+        get("njcaa_read_" + re.sub(r"\W+", "_", path)[:50], read_api + path)
 
 (OUT / "_log.json").write_text(json.dumps(log, indent=2))
