@@ -80,7 +80,7 @@ jobs:
           if [ "${{ steps.mode.outputs.full }}" = "true" ]; then
             python -m scraper rosters --max-minutes 25
           else
-            python -m scraper rosters --max-minutes 3
+            python -m scraper rosters --max-minutes 6
           fi
 
       - name: Save database
@@ -97,6 +97,9 @@ jobs:
         run: |
           python -m scraper export --out build/data
           cp -r site/* build/
+          # New file names on every build so browsers never keep an old copy of the app.
+          v=${GITHUB_SHA::8}-${GITHUB_RUN_NUMBER}
+          sed -i "s/app\.js\"/app.js?v=$v\"/; s/style\.css\"/style.css?v=$v\"/" build/index.html
           touch build/.nojekyll
 
       - uses: actions/upload-pages-artifact@v3
