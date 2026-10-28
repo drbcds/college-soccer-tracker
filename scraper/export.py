@@ -7,6 +7,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .ingest import nice
+
 STAT_COLS = ("minutes", "goals", "assists", "shots", "shots_on_goal", "pk_goals", "pk_attempts",
              "gw_goals", "fouls", "yellow", "red", "saves", "goals_allowed")
 
@@ -73,6 +75,7 @@ def export(con, out_dir: str) -> None:
     by_player = defaultdict(list)   # player key -> rows
     for r in con.execute("SELECT * FROM player_games"):
         r = dict(r)
+        r["first_name"], r["last_name"] = nice(r["first_name"]), nice(r["last_name"])
         pg[r["game_id"]].append(r)
         by_player[r["player"]].append(r)
     game_by_id = {g["id"]: g for g in games}
@@ -91,7 +94,8 @@ def export(con, out_dir: str) -> None:
             "hrec": g["home_record"], "arec": g["away_record"],
             "lines": json.loads(g["linescore"] or "[]"),
             "stats": json.loads(g["team_stats"] or "{}"),
-            "events": json.loads(g["timeline"] or "[]"),
+            "events": [{**e, **{k: nice(e[k]) for k in ("player", "assist", "off") if e.get(k)}}
+                       for e in json.loads(g["timeline"] or "[]")],
             "pbp": json.loads(g["pbp"] or "[]"),
             "players": [
                 {k: r[k] for k in ("team", "player", "first_name", "last_name", "number", "position",

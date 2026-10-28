@@ -37,6 +37,13 @@ def team_seo(t: dict) -> str:
     return t.get("seoname") or slug(t.get("nameShort") or t.get("nameFull") or "unknown")
 
 
+def nice(name: str) -> str:
+    """Title-case names that arrive in ALL CAPS ('DANIEL OSORNO' -> 'Daniel Osorno')."""
+    if name and name.isupper() and len(name) > 2:
+        return re.sub(r"\b([A-Za-z])([A-Za-z]*)", lambda m: m.group(1).upper() + m.group(2).lower(), name)
+    return name
+
+
 def norm_name(text: str) -> str:
     """'McErlain, Connall' -> 'Connall McErlain'."""
     text = text.strip().rstrip(".").strip()
@@ -165,7 +172,7 @@ def fetch_details(con, client: NcaaClient, game_id: int) -> bool:
             side = "home" if t.get("isHome") else "away"
             team_stats[side] = tb.get("teamStats")
             for p in tb.get("playerStats") or []:
-                first, last = (p.get("firstName") or "").strip(), (p.get("lastName") or "").strip()
+                first, last = nice((p.get("firstName") or "").strip()), nice((p.get("lastName") or "").strip())
                 if not (first or last):
                     continue
                 name = f"{first} {last}".strip()

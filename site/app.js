@@ -59,7 +59,8 @@
   };
   const longDate = (iso) => new Date(iso + "T12:00:00Z").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
   const localTime = (epoch) => new Date(epoch * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  const shortDate = (g) => new Date((g.t || 0) * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  // Game dates are US dates (as listed by the schools), not the viewer's local date
+  const shortDate = (g) => g.date ? new Date(g.date + "T12:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" }) : "";
 
   function minute(clk) {
     if (!clk || !clk.includes(":")) return "";
