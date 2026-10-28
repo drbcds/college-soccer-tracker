@@ -1,0 +1,58 @@
+[
+  {
+    "seo": "villanova",
+    "status": 200,
+    "bytes": 74739,
+    "final": "https://www.ncaa.com/schools/villanova",
+    "site": null
+  },
+  {
+    "seo": "temple",
+    "status": 200,
+    "bytes": 74645,
+    "final": "https://www.ncaa.com/schools/temple",
+    "site": null
+  },
+  {
+    "seo": "american",
+    "status": 200,
+    "bytes": 74686,
+    "final": "https://www.ncaa.com/schools/american",
+    "site": null
+  },
+  {
+    "seo": "rutgers",
+    "status": 200,
+    "bytes": 74726,
+    "final": "https://www.ncaa.com/schools/rutgers",
+    "site": null
+  },
+  {
+    "seo": "marist",
+    "status": 200,
+    "bytes": 74607,
+    "final": "https://www.ncaa.com/schools/marist",
+    "site": null
+  },
+  {
+    "seo": "young-harris",
+    "status": 200,
+    "bytes": 74792,
+    "final": "https://www.ncaa.com/schools/young-harris",
+    "site": null
+  },
+  {
+    "seo": "lynn",
+    "status": 200,
+    "bytes": 74640,
+    "final": "https://www.ncaa.com/schools/lynn",
+    "site": null
+  },
+  {
+    "seo": "duke",
+    "status": 200,
+    "bytes": 74566,
+    "final": "https://www.ncaa.com/schools/duke",
+    "site": null
+  }
+]
