@@ -1,0 +1,96 @@
+name: Update scores and website
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # live scores and box scores
+    - cron: "17 7 * * *"     # nightly: whole season schedule refresh
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Refresh the whole season and backfill every missing box score"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths: ["scraper/**", "site/**", ".github/workflows/update.yml"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Restore database
+        run: |
+          mkdir -p db
+          if git fetch -q --depth 1 origin data; then
+            git show FETCH_HEAD:soccer.sqlite.gz | gunzip > db/soccer.sqlite
+            echo "Restored database ($(du -h db/soccer.sqlite | cut -f1))"
+          else
+            echo "No saved database yet, starting fresh"
+          fi
+
+      - name: Decide what to run
+        id: mode
+        run: |
+          full=false
+          if [ "${{ inputs.full }}" = "true" ] || [ "${{ github.event.schedule }}" = "17 7 * * *" ] || [ ! -s db/soccer.sqlite ]; then full=true; fi
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "Full refresh: $full"
+
+      - name: Refresh season schedule
+        if: steps.mode.outputs.full == 'true'
+        run: python -m scraper season
+
+      - name: Live scores
+        run: python -m scraper live
+
+      - name: Backfill box scores
+        run: |
+          if [ "${{ steps.mode.outputs.full }}" = "true" ]; then
+            python -m scraper backfill --limit 20000 --max-minutes 60
+          else
+            python -m scraper backfill --limit 300 --max-minutes 4
+          fi
+
+      - name: Save database
+        run: |
+          mkdir -p /tmp/data && gzip -c db/soccer.sqlite > /tmp/data/soccer.sqlite.gz
+          cd /tmp/data
+          git init -q -b data
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A && git commit -q -m "Database snapshot"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" data
+
+      - name: Build website
+        run: |
+          python -m scraper export --out build/data
+          cp -r site/* build/
+          touch build/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

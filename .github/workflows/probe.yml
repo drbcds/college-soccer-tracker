@@ -2,11 +2,6 @@ name: Probe data sources
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "tools/probe.py"
-      - ".github/workflows/probe.yml"
 
 permissions:
   contents: write
