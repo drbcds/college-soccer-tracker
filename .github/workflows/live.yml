@@ -1,0 +1,44 @@
+name: Live scores watcher
+
+# Keeps polling today's games every 2 minutes and publishes fresh scores to the
+# `live` branch, which the website reads directly. GitHub starts scheduled runs
+# irregularly, so each run keeps going for hours instead of updating once.
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["scraper/**", ".github/workflows/live.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: live
+  cancel-in-progress: true
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Restore database
+        run: |
+          mkdir -p db
+          if git fetch -q --depth 1 origin data; then
+            git show FETCH_HEAD:soccer.sqlite.gz | gunzip > db/soccer.sqlite
+          fi
+
+      - name: Watch live games
+        env:
+          LIVE_REMOTE: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+        run: python -m scraper livewatch --max-minutes 330 --interval 120 --out build/live

@@ -12,13 +12,47 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const pad = (n) => String(n).padStart(2, "0");
 
+  // Live overlay: a watcher job pushes fresh scores to the repo's `live` branch every ~2 minutes,
+  // faster than the full site rebuild. Read it straight from GitHub when it's newer.
+  const RAW = (() => {
+    if (!location.hostname.endsWith(".github.io")) return null;
+    const owner = location.hostname.split(".")[0], repo = location.pathname.split("/").filter(Boolean)[0];
+    return repo ? `https://raw.githubusercontent.com/${owner}/${repo}/live/` : null;
+  })();
+  let mainMetaP = null, liveMeta = null, liveMetaAt = 0;
+  const mainMeta = () => (mainMetaP ||= fetch(`data/meta.json?t=${Math.floor(Date.now() / 30000)}`).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+  async function getLiveMeta() {
+    if (!RAW) return null;
+    if (Date.now() - liveMetaAt < 30000) return liveMeta;
+    liveMetaAt = Date.now();
+    try {
+      const r = await fetch(`${RAW}meta.json?t=${Math.floor(Date.now() / 30000)}`);
+      liveMeta = r.ok ? await r.json() : null;
+    } catch { liveMeta = null; }
+    return liveMeta;
+  }
+  async function overlay(path, data) {
+    const m = path.match(/^(days|games)\/([^/]+)\.json$/);
+    if (!m) return data;
+    const [lm, mm] = await Promise.all([getLiveMeta(), mainMeta()]);
+    if (!lm || (mm && lm.updated <= mm.updated)) return data;
+    if (!(m[1] === "days" ? lm.days : lm.games).includes(m[2])) return data;
+    try {
+      const r = await fetch(`${RAW}${path}?t=${Math.floor(Date.now() / 30000)}`);
+      if (!r.ok) return data;
+      const fresh = await r.json();
+      return m[1] === "games" ? { ...(data || {}), ...fresh, h2h: data?.h2h || [] } : fresh;
+    } catch { return data; }
+  }
+
   async function load(path, { fresh = false } = {}) {
     if (!fresh && cache.has(path)) return cache.get(path);
     const url = `data/${path}` + (fresh ? `?t=${Math.floor(Date.now() / 30000)}` : "");
     const res = await fetch(url);
-    if (!res.ok) { if (res.status === 404) return null; throw new Error(`Couldn't load ${path} (${res.status})`); }
-    const data = await res.json();
-    cache.set(path, data);
+    if (!res.ok && res.status !== 404) throw new Error(`Couldn't load ${path} (${res.status})`);
+    let data = res.ok ? await res.json() : null;
+    if (fresh) data = await overlay(path, data);
+    if (data !== null) cache.set(path, data);
     return data;
   }
 
@@ -525,8 +559,9 @@
   }
   window.addEventListener("hashchange", () => { route(); });
 
-  load("meta.json", { fresh: true }).then((m) => {
-    if (m) document.getElementById("updated").textContent = `Last update ${new Date(m.updated).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`;
+  Promise.all([mainMeta(), getLiveMeta()]).then(([m, lm]) => {
+    const t = [m?.updated, lm?.updated].filter(Boolean).sort().pop();
+    if (t) document.getElementById("updated").textContent = `Last update ${new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`;
   }).catch(() => {});
   route();
 })();

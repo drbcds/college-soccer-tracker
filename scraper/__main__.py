@@ -9,13 +9,16 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
+import shutil
+import subprocess
 import time
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from . import db
 from . import njcaa, rosters
-from .export import export
+from .export import export, export_live
 from .ingest import fetch_details, ingest_scoreboard, needs_detail
 from .ncaa import FeedError, NcaaClient
 
@@ -103,6 +106,60 @@ def cmd_backfill(con, client, args):
     log.info("backfill: %d games filled, %d still missing", done, left)
 
 
+def push_live(out_dir: str) -> None:
+    """Publish the live overlay folder as a single commit on the `live` branch."""
+    remote = os.environ.get("LIVE_REMOTE")
+    if not remote:
+        log.info("LIVE_REMOTE not set; overlay written to %s only", out_dir)
+        return
+    git = ["git", "-C", out_dir, "-c", "user.name=github-actions", "-c", "user.email=github-actions@users.noreply.github.com"]
+    if not os.path.isdir(os.path.join(out_dir, ".git")):
+        subprocess.run(git + ["init", "-q", "-b", "live"], check=True)
+    subprocess.run(git + ["add", "-A"], check=True)
+    subprocess.run(git + ["commit", "-q", "--allow-empty", "-m", "Live update"], check=True)
+    subprocess.run(git + ["push", "-q", "-f", remote, "live"], check=True)
+    # Keep one commit so the branch never grows.
+    subprocess.run(git + ["update-ref", "-d", "HEAD"], check=False)
+
+
+def cmd_livewatch(con, client, args):
+    """Keep polling today's games every --interval seconds and publish an overlay for the website."""
+    out = args.out if args.out != "build/data" else "build/live"
+    if os.path.isdir(out):
+        shutil.rmtree(out)
+    os.makedirs(out)
+    stop_at = time.monotonic() + (args.max_minutes or 330) * 60
+    idle = 0
+    while time.monotonic() < stop_at:
+        started = time.monotonic()
+        today = datetime.now(ET).date()
+        dates = [today - timedelta(days=1), today]
+        refresh_dates(con, client, dates)
+        try:
+            njcaa.ingest_recent(con, NJ, season_for(today))
+        except Exception:  # noqa: BLE001
+            log.exception("njcaa live refresh failed")
+        rows = con.execute(f"SELECT * FROM games WHERE date IN ({','.join('?' * len(dates))})",
+                           [d.isoformat() for d in dates]).fetchall()
+        todo = [r for r in rows if needs_detail(r)]
+        for r in todo:
+            detail(con, client, r)
+        export_live(con, out, [d.isoformat() for d in dates], [r["id"] for r in todo])
+        try:
+            push_live(out)
+        except subprocess.CalledProcessError as e:
+            log.warning("push failed: %s", e)
+        now_ts = time.time()
+        busy = any(r["status"] == "live" or (r["status"] == "pre" and r["start_epoch"]
+                   and now_ts - 3 * 3600 < r["start_epoch"] < now_ts + 90 * 60) for r in rows)
+        idle = 0 if busy else idle + 1
+        log.info("livewatch: %d games today, %d refreshed, busy=%s", len(rows), len(todo), busy)
+        if idle >= 3:
+            log.info("livewatch: nothing live or about to start; stopping")
+            break
+        time.sleep(max(5, args.interval - (time.monotonic() - started)))
+
+
 def cmd_rosters(con, client, args):
     minutes = args.max_minutes or 20
     try:
@@ -114,12 +171,13 @@ def cmd_rosters(con, client, args):
 
 def main():
     ap = argparse.ArgumentParser(prog="scraper")
-    ap.add_argument("command", choices=["season", "live", "backfill", "rosters", "export"])
+    ap.add_argument("command", choices=["season", "live", "livewatch", "backfill", "rosters", "export"])
     ap.add_argument("--db", default="db/soccer.sqlite")
     ap.add_argument("--out", default="build/data")
     ap.add_argument("--season", type=int)
     ap.add_argument("--limit", type=int, default=300)
     ap.add_argument("--max-minutes", type=float, default=0)
+    ap.add_argument("--interval", type=int, default=120)
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -130,7 +188,8 @@ def main():
     if args.command == "export":
         export(con, args.out)
     else:
-        {"season": cmd_season, "live": cmd_live, "backfill": cmd_backfill, "rosters": cmd_rosters}[args.command](con, client, args)
+        {"season": cmd_season, "live": cmd_live, "backfill": cmd_backfill, "rosters": cmd_rosters,
+         "livewatch": cmd_livewatch}[args.command](con, client, args)
         log.info("%d NCAA and %d NJCAA requests made", client.requests_made, NJ.requests_made)
     con.close()
 

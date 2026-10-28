@@ -27,6 +27,77 @@ def game_summary(g) -> dict:
     }
 
 
+def roster_lookup(con):
+    """Class year / hometown from rosters, matched by name slug, then by last name + first initial."""
+    from .ingest import slug as _slug
+    roster_exact, roster_loose = {}, {}
+    try:
+        for r in con.execute("SELECT * FROM rosters"):
+            r = dict(r)
+            roster_exact[(r["team"], r["slug"])] = r
+            parts = r["slug"].split("-")
+            if len(parts) >= 2:
+                roster_loose.setdefault((r["team"], parts[-1], parts[0][:1]), r)
+                roster_loose.setdefault((r["team"], "".join(parts[1:]), parts[0][:1]), r)
+    except Exception:  # noqa: BLE001 - table missing in very old databases
+        pass
+
+    def roster_for(team, first, last):
+        hit = roster_exact.get((team, _slug(f"{first} {last}")))
+        if not hit:
+            lp = _slug(last).split("-")
+            fi = _slug(first)[:1]
+            hit = (roster_loose.get((team, lp[-1] if lp and lp[0] else "", fi))
+                   or roster_loose.get((team, "".join(lp), fi)))
+        return hit or {}
+    return roster_for
+
+
+def game_detail(g, rows, roster_for) -> dict:
+    detail = game_summary(g)
+    detail.update({
+        "venue": g["venue"], "city": g["city"], "st": g["state_usps"],
+        "hrec": g["home_record"], "arec": g["away_record"],
+        "lines": json.loads(g["linescore"] or "[]"),
+        "stats": json.loads(g["team_stats"] or "{}"),
+        "events": [{**e, **{k: nice(e[k]) for k in ("player", "assist", "off") if e.get(k)}}
+                   for e in json.loads(g["timeline"] or "[]")],
+        "pbp": json.loads(g["pbp"] or "[]"),
+        "players": [
+            {**{k: r[k] for k in ("team", "player", "first_name", "last_name", "number", "position",
+                                  "starter", "played", "is_keeper") + STAT_COLS},
+             "yr": roster_for(r["team"], r["first_name"], r["last_name"]).get("class_year")}
+            for r in sorted(rows, key=lambda r: (-r["starter"], -(r["minutes"] or 0)))
+        ],
+    })
+    return detail
+
+
+def export_live(con, out_dir: str, dates: list[str], game_ids: list[int]) -> dict:
+    """Small 'live overlay': today's day lists and the games that just changed."""
+    out = Path(out_dir)
+    roster_for = roster_lookup(con)
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    for d in dates:
+        rows = con.execute("SELECT * FROM games WHERE date=? AND home IS NOT NULL ORDER BY start_epoch, id", (d,)).fetchall()
+        _write(out / "days" / f"{d}.json", [game_summary(g) for g in rows])
+    for gid in game_ids:
+        g = con.execute("SELECT * FROM games WHERE id=?", (gid,)).fetchone()
+        if not g:
+            continue
+        rows = []
+        for r in con.execute("SELECT * FROM player_games WHERE game_id=?", (gid,)):
+            r = dict(r)
+            r["first_name"], r["last_name"] = nice(r["first_name"]), nice(r["last_name"])
+            rows.append(r)
+        _write(out / "games" / f"{gid}.json", game_detail(g, rows, roster_for))
+    live = [game_summary(g) for g in con.execute("SELECT * FROM games WHERE status='live'")]
+    meta = {"updated": stamp, "days": dates, "games": [str(i) for i in game_ids], "live": len(live)}
+    _write(out / "live.json", live)
+    _write(out / "meta.json", meta)
+    return meta
+
+
 def export(con, out_dir: str) -> None:
     out = Path(out_dir)
     if out.exists():
@@ -78,28 +149,7 @@ def export(con, out_dir: str) -> None:
     pg = defaultdict(list)          # game_id -> rows
     by_player = defaultdict(list)   # player key -> rows
 
-    # Class year / hometown from rosters, matched by name slug, then by last name + first initial.
-    from .ingest import slug as _slug
-    roster_exact, roster_loose = {}, {}
-    try:
-        for r in con.execute("SELECT * FROM rosters"):
-            r = dict(r)
-            roster_exact[(r["team"], r["slug"])] = r
-            parts = r["slug"].split("-")
-            if len(parts) >= 2:
-                roster_loose.setdefault((r["team"], parts[-1], parts[0][:1]), r)
-                roster_loose.setdefault((r["team"], "".join(parts[1:]), parts[0][:1]), r)
-    except Exception:  # noqa: BLE001 - table missing in very old databases
-        pass
-
-    def roster_for(team, first, last):
-        hit = roster_exact.get((team, _slug(f"{first} {last}")))
-        if not hit:
-            lp = _slug(last).split("-")
-            fi = _slug(first)[:1]
-            hit = (roster_loose.get((team, lp[-1] if lp and lp[0] else "", fi))
-                   or roster_loose.get((team, "".join(lp), fi)))
-        return hit or {}
+    roster_for = roster_lookup(con)
     for r in con.execute("SELECT * FROM player_games"):
         r = dict(r)
         r["first_name"], r["last_name"] = nice(r["first_name"]), nice(r["last_name"])
@@ -113,25 +163,10 @@ def export(con, out_dir: str) -> None:
         by_team_games[g["home"]].append(g)
         by_team_games[g["away"]].append(g)
     for g in games:
-        detail = game_summary(g)
         h2h = [game_summary(x) for x in by_team_games[g["home"]]
                if x["id"] != g["id"] and {x["home"], x["away"]} == {g["home"], g["away"]}]
-        detail.update({
-            "venue": g["venue"], "city": g["city"], "st": g["state_usps"],
-            "hrec": g["home_record"], "arec": g["away_record"],
-            "lines": json.loads(g["linescore"] or "[]"),
-            "stats": json.loads(g["team_stats"] or "{}"),
-            "events": [{**e, **{k: nice(e[k]) for k in ("player", "assist", "off") if e.get(k)}}
-                       for e in json.loads(g["timeline"] or "[]")],
-            "pbp": json.loads(g["pbp"] or "[]"),
-            "players": [
-                {**{k: r[k] for k in ("team", "player", "first_name", "last_name", "number", "position",
-                                      "starter", "played", "is_keeper") + STAT_COLS},
-                 "yr": roster_for(r["team"], r["first_name"], r["last_name"]).get("class_year")}
-                for r in sorted(pg.get(g["id"], []), key=lambda r: (-r["starter"], -(r["minutes"] or 0)))
-            ],
-            "h2h": h2h,
-        })
+        detail = game_detail(g, pg.get(g["id"], []), roster_for)
+        detail["h2h"] = h2h
         _write(out / "games" / f"{g['id']}.json", detail)
 
     # ---- players: season totals + game logs
