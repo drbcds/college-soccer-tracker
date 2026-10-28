@@ -20,7 +20,7 @@ def _write(path: Path, obj) -> None:
 
 def game_summary(g) -> dict:
     return {
-        "id": g["id"], "div": g["division"], "date": g["date"], "t": g["start_epoch"],
+        "id": str(g["id"]), "div": g["division"], "src": g["source"] or "ncaa", "date": g["date"], "t": g["start_epoch"],
         "tm": g["has_time"], "s": g["status"], "per": g["period"], "clk": g["clock"],
         "h": g["home"], "a": g["away"], "hs": g["home_score"], "as": g["away_score"],
         "hr": g["home_rank"], "ar": g["away_rank"], "w": g["winner"], "rd": g["round"],
@@ -57,6 +57,7 @@ def export(con, out_dir: str) -> None:
         teams_out.append({
             "seo": seo, "name": t["name_short"] or seo, "full": t["name_full"], "nick": t["nickname"],
             "color": t["color"], "div": t["division"], "conf": t["conference"],
+            "assoc": t["assoc"] or "ncaa", "logo": t["logo"],
             "w": r["w"], "l": r["l"], "t": r["t"], "gf": r["gf"], "ga": r["ga"], "form": r["form"][-5:],
         })
     teams_out.sort(key=lambda x: x["name"].lower())
@@ -144,8 +145,8 @@ def export(con, out_dir: str) -> None:
 
     # ---- leaders (top 50 per division per category)
     lead_out = {}
-    for div in (1, 2):
-        pool = [p for p in leaders if p["div"] == div]
+    for div in (1, 2, "J1", "J2", "J3"):
+        pool = [p for p in leaders if str(p["div"]) == str(div)]
         lead_out[str(div)] = {
             "goals": sorted(pool, key=lambda p: (-p["goals"], p["gp"]))[:50],
             "assists": sorted(pool, key=lambda p: (-p["assists"], p["gp"]))[:50],

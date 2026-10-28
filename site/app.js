@@ -47,6 +47,14 @@
   };
   const confName = (c) => !c ? "Other" : CONF[c] || (c.length <= 5 ? c.toUpperCase() : c.replace(/-/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()));
 
+  const DIVS = { "1": "NCAA Division I", "2": "NCAA Division II", J1: "NJCAA Division I", J2: "NJCAA Division II", J3: "NJCAA Division III", J: "NJCAA" };
+  const DIV_ORDER = ["1", "2", "J1", "J2", "J3", "J"];
+  const divLabel = (d) => DIVS[String(d)] || "";
+  const divRank = (d) => { const i = DIV_ORDER.indexOf(String(d)); return i < 0 ? 99 : i; };
+  // Division filter values: "all", "1", "2", "J" (any NJCAA division)
+  const divMatch = (d, f) => f === "all" || (f === "J" ? String(d).startsWith("J") : String(d) === f);
+  const DIV_TABS = [["1", "NCAA D-I"], ["2", "NCAA D-II"], ["J1", "NJCAA D-I"], ["J2", "NJCAA D-II"], ["J3", "NJCAA D-III"]];
+
   // US (Eastern) calendar date: games are filed under their US date
   const etDate = (d = new Date()) => {
     const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
@@ -128,28 +136,28 @@
 
     const draw = async (fresh) => {
       const games = (await load(`days/${date}.json`, { fresh })) || [];
-      let list = games.filter((g) => scoresState.div === "all" || String(g.div) === scoresState.div);
+      let list = games.filter((g) => divMatch(g.div, scoresState.div));
       if (scoresState.liveOnly) list = list.filter((g) => g.s === "live");
       const groups = new Map();
       for (const g of list) {
         const hc = team(g.h).conf, ac = team(g.a).conf;
         const key = g.rd ? g.rd : hc && hc === ac ? confName(hc) : "Non-conference";
-        const div = Math.min(g.div || 9, 9);
+        const div = String(g.div ?? "");
         const k = `${key}|${div}`;
         if (!groups.has(k)) groups.set(k, { name: key, div, games: [] });
         groups.get(k).games.push(g);
       }
       const sorted = [...groups.values()].sort((a, b) =>
         (b.games.some((g) => g.s === "live") - a.games.some((g) => g.s === "live")) ||
-        (a.name === "Non-conference") - (b.name === "Non-conference") || a.div - b.div || a.name.localeCompare(b.name));
-      for (const gr of sorted) gr.games.sort((a, b) => (a.t || 0) - (b.t || 0) || a.id - b.id);
+        divRank(a.div) - divRank(b.div) || (a.name === "Non-conference") - (b.name === "Non-conference") || a.name.localeCompare(b.name));
+      for (const gr of sorted) gr.games.sort((a, b) => (a.t || 0) - (b.t || 0) || String(a.id).localeCompare(String(b.id)));
       const liveN = games.filter((g) => g.s === "live").length;
 
       document.getElementById("list").innerHTML = sorted.length ? sorted.map((gr) => `
         <section class="group" aria-label="${esc(gr.name)}">
-          <h2>${esc(gr.name)} <span>Division ${gr.div === 1 ? "I" : gr.div === 2 ? "II" : ""}</span></h2>
+          <h2>${esc(gr.name)} <span>${esc(divLabel(gr.div))}</span></h2>
           ${gr.games.map(matchRow).join("")}
-        </section>`).join("") : `<div class="empty-state">${scoresState.liveOnly ? "No games are live right now." : `No ${scoresState.div === "all" ? "" : "Division " + (scoresState.div === "1" ? "I " : "II ")}games on ${esc(longDate(date))}.`}</div>`;
+        </section>`).join("") : `<div class="empty-state">${scoresState.liveOnly ? "No games are live right now." : `No ${scoresState.div === "all" ? "" : ({ "1": "NCAA Division I ", "2": "NCAA Division II ", J: "NJCAA " })[scoresState.div]}games on ${esc(longDate(date))}.`}</div>`;
       const lb = document.getElementById("livebtn");
       if (lb) lb.querySelector("span").textContent = liveN ? `Live now (${liveN})` : "Live now";
     };
@@ -167,7 +175,7 @@
       </div>
       <div class="toolbar">
         <div class="seg" role="group" aria-label="Division">
-          ${[["all", "All"], ["1", "Division I"], ["2", "Division II"]].map(([v, l]) => `<button data-div="${v}" aria-pressed="${scoresState.div === v}">${l}</button>`).join("")}
+          ${[["all", "All"], ["1", "NCAA D-I"], ["2", "NCAA D-II"], ["J", "NJCAA"]].map(([v, l]) => `<button data-div="${v}" aria-pressed="${scoresState.div === v}">${l}</button>`).join("")}
         </div>
         <label class="toggle" id="livebtn"><input type="checkbox" ${scoresState.liveOnly ? "checked" : ""}> <span>Live now</span></label>
       </div>
@@ -249,10 +257,12 @@
     const starters = ps.filter((p) => p.starter), subs = ps.filter((p) => !p.starter && p.played), dnp = ps.filter((p) => !p.played);
     const keepers = ps.filter((p) => p.is_keeper && p.played);
     return `<div class="tablewrap"><table>
-      <thead><tr><th>#</th><th class="l">Starters</th><th class="l hide-sm">Pos</th><th title="Minutes">Min</th><th title="Goals">G</th><th title="Assists">A</th><th title="Shots">Sh</th><th title="Shots on goal">SoG</th><th><span class="sr-only" style="position:absolute;left:-9999px">Cards</span></th></tr></thead>
-      <tbody>${starters.map(row).join("")}
+      <thead><tr><th>#</th><th class="l">${starters.length ? "Starters" : "Players"}</th><th class="l hide-sm">Pos</th><th title="Minutes">Min</th><th title="Goals">G</th><th title="Assists">A</th><th title="Shots">Sh</th><th title="Shots on goal">SoG</th><th><span class="sr-only" style="position:absolute;left:-9999px">Cards</span></th></tr></thead>
+      <tbody>${starters.length ? `${starters.map(row).join("")}
       ${subs.length ? `<tr><td colspan="9" class="subhead l">Substitutes</td></tr>${subs.map(row).join("")}` : ""}
-      ${dnp.length ? `<tr><td colspan="9" class="subhead l">Did not play</td></tr>${dnp.map(row).join("")}` : ""}
+      ${dnp.length ? `<tr><td colspan="9" class="subhead l">Did not play</td></tr>${dnp.map(row).join("")}` : ""}`
+      : subs.length ? `${subs.map(row).join("")}${dnp.length ? `<tr><td colspan="9" class="subhead l">Others on the roster</td></tr>${dnp.map(row).join("")}` : ""}`
+      : `<tr><td colspan="9" class="subhead l">The school didn't publish who played. Roster:</td></tr>${dnp.map(row).join("")}`}
       </tbody></table></div>
       ${keepers.length ? `<div class="tablewrap"><table><thead><tr><th class="l">Goalkeeper</th><th>Min</th><th>Saves</th><th>GA</th></tr></thead><tbody>
         ${keepers.map((k) => `<tr><td class="l">${esc(k.first_name)} ${esc(k.last_name)}</td><td>${k.minutes ?? ""}</td><td>${k.saves ?? ""}</td><td>${k.goals_allowed ?? ""}</td></tr>`).join("")}
@@ -350,7 +360,7 @@
           <div>
             <h1>${esc(t.name)}</h1>
             <p>${esc([t.nick, t.full].filter(Boolean).join(", "))}</p>
-            <p class="muted">${t.div ? `Division ${t.div === 1 ? "I" : "II"}` : ""}${t.conf ? `, ${esc(confName(t.conf))}` : ""}</p>
+            <p class="muted">${esc(divLabel(t.div))}${t.conf ? `, ${esc(confName(t.conf))}` : ""}</p>
             <div class="facts">
               <div><b>${t.w}-${t.l}-${t.t}</b><small>Record (W-L-T)</small></div>
               <div><b>${t.gf}</b><small>Goals for</small></div>
@@ -417,7 +427,7 @@
     const sorted = [...confs.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     $main.innerHTML = `
       <div class="filters"><div class="seg" role="group" aria-label="Division">
-        ${[["1", "Division I"], ["2", "Division II"]].map(([v, l]) => `<button data-div="${v}" aria-pressed="${div === v}">${l}</button>`).join("")}
+        ${DIV_TABS.map(([v, l]) => `<button data-div="${v}" aria-pressed="${div === v}">${l}</button>`).join("")}
       </div><span class="muted">Overall records, all games this season</span></div>
       ${sorted.map(([c, ts]) => `<section class="group"><h2>${esc(c)} <span>${ts.length} teams</span></h2><div class="tablewrap"><table>
         <thead><tr><th class="l" style="padding-left:14px">Team</th><th>GP</th><th>W</th><th>L</th><th>T</th><th class="hide-sm">GF</th><th class="hide-sm">GA</th><th>GD</th><th>Pts</th><th class="l hide-sm">Form</th></tr></thead>
@@ -441,7 +451,7 @@
     const val = (p) => cat === "points" ? 2 * p.goals + p.assists : p[cat];
     $main.innerHTML = `
       <div class="filters">
-        <div class="seg" role="group" aria-label="Division">${[["1", "Division I"], ["2", "Division II"]].map(([v, l]) => `<button data-div="${v}" aria-pressed="${div === v}">${l}</button>`).join("")}</div>
+        <div class="seg" role="group" aria-label="Division">${DIV_TABS.map(([v, l]) => `<button data-div="${v}" aria-pressed="${div === v}">${l}</button>`).join("")}</div>
         <div class="seg" role="group" aria-label="Category">${cats.map(([v, l]) => `<button data-cat="${v}" aria-pressed="${cat === v}">${l}</button>`).join("")}</div>
       </div>
       ${cat === "points" ? `<p class="muted" style="margin:-4px 0 10px">Points: 2 per goal, 1 per assist (NCAA scoring).</p>` : ""}

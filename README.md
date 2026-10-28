@@ -1,12 +1,12 @@
 # College Soccer Tracker
 
-Live scores, results, fixtures, box scores and player stats for NCAA Division I and Division II men's soccer, in the spirit of SofaScore. Junior college (NJCAA) is planned next.
+Live scores, results, fixtures, box scores and player stats for NCAA Division I and II and NJCAA (junior college) Divisions I, II and III men's soccer, in the spirit of SofaScore.
 
 ## How it works
 
 Everything runs for free on GitHub; nothing needs to be installed.
 
-1. **Every 10 minutes** a GitHub Action (`.github/workflows/update.yml`) asks NCAA.com's public scoreboard feed for yesterday's and today's games, and fetches box scores, goal scorers and play-by-play for live and newly finished games.
+1. **Every 10 minutes** a GitHub Action (`.github/workflows/update.yml`) asks NCAA.com's public scoreboard feed and the NJCAA's public API for recent games, and fetches box scores, goal scorers and play-by-play for live and newly finished games.
 2. **Every night** it re-reads the whole season's schedule (Aug 15 – Dec 20) and fills in any missing box scores.
 3. The data is kept in a SQLite database, saved compressed on the `data` branch between runs.
 4. The scraper exports small JSON files, and the website in `site/` (plain HTML, CSS and JavaScript) is published to GitHub Pages together with them.
@@ -15,7 +15,8 @@ Everything runs for free on GitHub; nothing needs to be installed.
 
 | Path | What it is |
 |---|---|
-| `scraper/ncaa.py` | Client for NCAA.com's data feed |
+| `scraper/ncaa.py` | Client for NCAA.com's data feed (D1, D2) |
+| `scraper/njcaa.py` | NJCAA: teams, schedules and box scores from the public GraphQL API behind njcaa.org |
 | `scraper/ingest.py` | Turns feed responses into database rows (games, teams, player box scores, match timeline) |
 | `scraper/export.py` | Writes the JSON files the website reads |
 | `scraper/__main__.py` | Commands: `season`, `live`, `backfill`, `export` |

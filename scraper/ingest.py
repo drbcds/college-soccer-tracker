@@ -54,7 +54,7 @@ def norm_name(text: str) -> str:
 
 
 def clock_minute(clock: str | None) -> int | None:
-    """'04:51' -> 5 (soccer minute convention)."""
+    """'04:51' -> 5, '30:00' -> 30 (soccer minute convention)."""
     if not clock or ":" not in clock:
         return None
     mm, ss = clock.split(":")[:2]
@@ -62,7 +62,7 @@ def clock_minute(clock: str | None) -> int | None:
         m, s = int(mm), int(ss)
     except ValueError:
         return None
-    return m + 1 if (m or s) else 0
+    return m + 1 if s else m
 
 
 # ---------------------------------------------------------------- scoreboard

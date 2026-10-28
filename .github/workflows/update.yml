@@ -54,6 +54,8 @@ jobs:
         run: |
           full=false
           if [ "${{ inputs.full }}" = "true" ] || [ "${{ github.event.schedule }}" = "17 7 * * *" ] || [ ! -s db/soccer.sqlite ]; then full=true; fi
+          # First run after adding junior college: load the NJCAA season too.
+          if [ -s db/soccer.sqlite ] && ! python -c "import sqlite3,sys; c=sqlite3.connect('db/soccer.sqlite'); sys.exit(0 if c.execute(\"SELECT 1 FROM sqlite_master WHERE name='teams'\").fetchone() and 'assoc' in [r[1] for r in c.execute('PRAGMA table_info(teams)')] and c.execute(\"SELECT 1 FROM teams WHERE assoc='njcaa'\").fetchone() else 1)"; then full=true; fi
           echo "full=$full" >> "$GITHUB_OUTPUT"
           echo "Full refresh: $full"
 

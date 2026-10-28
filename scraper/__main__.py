@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from . import db
+from . import njcaa
 from .export import export
 from .ingest import fetch_details, ingest_scoreboard, needs_detail
 from .ncaa import FeedError, NcaaClient
@@ -21,6 +22,7 @@ from .ncaa import FeedError, NcaaClient
 ET = ZoneInfo("America/New_York")
 DIVISIONS = (1, 2)
 log = logging.getLogger("scraper")
+NJ: njcaa.NjcaaClient | None = None
 
 
 def season_for(d: date) -> int:
@@ -51,35 +53,53 @@ def refresh_dates(con, client, dates, divisions=DIVISIONS) -> int:
 
 def cmd_season(con, client, args):
     today = datetime.now(ET).date()
-    n = refresh_dates(con, client, season_dates(args.season or season_for(today)))
+    season = args.season or season_for(today)
+    n = refresh_dates(con, client, season_dates(season))
     log.info("season: %d contests refreshed", n)
+    try:
+        njcaa.ingest_season(con, NJ, season)
+    except Exception:  # noqa: BLE001 - junior college must never break the NCAA update
+        log.exception("njcaa season refresh failed")
+
+
+def detail(con, client, row) -> bool:
+    if (row["source"] or "ncaa") == "njcaa":
+        return njcaa.fetch_details(con, NJ, row["id"])
+    return fetch_details(con, client, row["id"])
 
 
 def cmd_live(con, client, args):
     today = datetime.now(ET).date()
     dates = [today - timedelta(days=1), today]
     n = refresh_dates(con, client, dates)
+    try:
+        n += njcaa.ingest_recent(con, NJ, season_for(today))
+    except Exception:  # noqa: BLE001
+        log.exception("njcaa live refresh failed")
     rows = con.execute(
         f"SELECT * FROM games WHERE date IN ({','.join('?' * len(dates))})",
         [d.isoformat() for d in dates]).fetchall()
     todo = [r for r in rows if needs_detail(r)]
     for r in todo:
-        fetch_details(con, client, r["id"])
+        detail(con, client, r)
     log.info("live: %d contests, %d box scores refreshed", n, len(todo))
 
 
 def cmd_backfill(con, client, args):
+    # NJCAA games whose box score isn't published yet are re-checked at most every 6 hours.
     rows = con.execute(
-        "SELECT id FROM games WHERE status='final' AND (detail_state IS NULL OR detail_state!='F') "
+        "SELECT id, source FROM games WHERE status='final' AND (detail_state IS NULL OR detail_state!='F') "
+        "AND NOT (detail_state='N' AND detail_at > strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-6 hours')) "
+        "AND NOT (source='njcaa' AND detail_state='N' AND date < date('now', '-10 days')) "
         "ORDER BY date DESC LIMIT ?", (args.limit,)).fetchall()
     started = time.monotonic()
     done = 0
     for r in rows:
         if args.max_minutes and time.monotonic() - started > args.max_minutes * 60:
             break
-        done += fetch_details(con, client, r["id"])
+        done += detail(con, client, r)
     left = con.execute("SELECT COUNT(*) FROM games WHERE status='final' AND "
-                       "(detail_state IS NULL OR detail_state!='F')").fetchone()[0]
+                       "(detail_state IS NULL)").fetchone()[0]
     log.info("backfill: %d games filled, %d still missing", done, left)
 
 
@@ -96,11 +116,13 @@ def main():
 
     con = db.connect(args.db)
     client = NcaaClient()
+    global NJ
+    NJ = njcaa.NjcaaClient()
     if args.command == "export":
         export(con, args.out)
     else:
         {"season": cmd_season, "live": cmd_live, "backfill": cmd_backfill}[args.command](con, client, args)
-        log.info("%d requests made", client.requests_made)
+        log.info("%d NCAA and %d NJCAA requests made", client.requests_made, NJ.requests_made)
     con.close()
 
 

@@ -91,7 +91,24 @@ def connect(path: str | Path) -> sqlite3.Connection:
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("PRAGMA foreign_keys=OFF")
     con.executescript(SCHEMA)
+    migrate(con)
     return con
+
+
+# Columns added after the first release; ALTER keeps existing databases working.
+MIGRATIONS = {
+    "teams": {"assoc": "TEXT DEFAULT 'ncaa'", "logo": "TEXT", "school_tenant": "TEXT"},
+    "games": {"source": "TEXT DEFAULT 'ncaa'", "has_box": "INTEGER"},
+}
+
+
+def migrate(con: sqlite3.Connection) -> None:
+    for table, cols in MIGRATIONS.items():
+        have = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
+        for col, decl in cols.items():
+            if col not in have:
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+    con.commit()
 
 
 def upsert(con: sqlite3.Connection, table: str, row: dict, key: tuple[str, ...]) -> None:
