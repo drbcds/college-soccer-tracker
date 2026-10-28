@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from . import db
-from . import njcaa
+from . import njcaa, rosters
 from .export import export
 from .ingest import fetch_details, ingest_scoreboard, needs_detail
 from .ncaa import FeedError, NcaaClient
@@ -103,9 +103,18 @@ def cmd_backfill(con, client, args):
     log.info("backfill: %d games filled, %d still missing", done, left)
 
 
+def cmd_rosters(con, client, args):
+    minutes = args.max_minutes or 20
+    try:
+        rosters.fetch_njcaa(con, NJ)
+    except Exception:  # noqa: BLE001
+        log.exception("njcaa rosters failed")
+    rosters.fetch_ncaa(con, max_minutes=minutes)
+
+
 def main():
     ap = argparse.ArgumentParser(prog="scraper")
-    ap.add_argument("command", choices=["season", "live", "backfill", "export"])
+    ap.add_argument("command", choices=["season", "live", "backfill", "rosters", "export"])
     ap.add_argument("--db", default="db/soccer.sqlite")
     ap.add_argument("--out", default="build/data")
     ap.add_argument("--season", type=int)
@@ -121,7 +130,7 @@ def main():
     if args.command == "export":
         export(con, args.out)
     else:
-        {"season": cmd_season, "live": cmd_live, "backfill": cmd_backfill}[args.command](con, client, args)
+        {"season": cmd_season, "live": cmd_live, "backfill": cmd_backfill, "rosters": cmd_rosters}[args.command](con, client, args)
         log.info("%d NCAA and %d NJCAA requests made", client.requests_made, NJ.requests_made)
     con.close()
 

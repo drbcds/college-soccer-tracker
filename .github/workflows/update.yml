@@ -74,6 +74,15 @@ jobs:
             python -m scraper backfill --limit 1500 --max-minutes 7
           fi
 
+      - name: Rosters (class year)
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.mode.outputs.full }}" = "true" ]; then
+            python -m scraper rosters --max-minutes 25
+          else
+            python -m scraper rosters --max-minutes 3
+          fi
+
       - name: Save database
         run: |
           mkdir -p /tmp/data && gzip -c db/soccer.sqlite > /tmp/data/soccer.sqlite.gz

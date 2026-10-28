@@ -225,6 +225,7 @@ tr.dnp td { color: var(--muted); }
 }
 .form .W { background: #2F8F55; } .form .L { background: #C8463E; } .form .T { background: #8C948F; }
 
+.yr { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 6px; vertical-align: 1px; }
 .res { font: 700 15px/1 var(--display); width: 22px; height: 22px; border-radius: 5px; display: inline-grid; place-items: center; color: #fff; }
 .res.W { background: #2F8F55; } .res.L { background: #C8463E; } .res.T { background: #8C948F; }
 

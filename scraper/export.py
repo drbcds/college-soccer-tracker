@@ -77,6 +77,29 @@ def export(con, out_dir: str) -> None:
     # ---- player game rows
     pg = defaultdict(list)          # game_id -> rows
     by_player = defaultdict(list)   # player key -> rows
+
+    # Class year / hometown from rosters, matched by name slug, then by last name + first initial.
+    from .ingest import slug as _slug
+    roster_exact, roster_loose = {}, {}
+    try:
+        for r in con.execute("SELECT * FROM rosters"):
+            r = dict(r)
+            roster_exact[(r["team"], r["slug"])] = r
+            parts = r["slug"].split("-")
+            if len(parts) >= 2:
+                roster_loose.setdefault((r["team"], parts[-1], parts[0][:1]), r)
+                roster_loose.setdefault((r["team"], "".join(parts[1:]), parts[0][:1]), r)
+    except Exception:  # noqa: BLE001 - table missing in very old databases
+        pass
+
+    def roster_for(team, first, last):
+        hit = roster_exact.get((team, _slug(f"{first} {last}")))
+        if not hit:
+            lp = _slug(last).split("-")
+            fi = _slug(first)[:1]
+            hit = (roster_loose.get((team, lp[-1] if lp and lp[0] else "", fi))
+                   or roster_loose.get((team, "".join(lp), fi)))
+        return hit or {}
     for r in con.execute("SELECT * FROM player_games"):
         r = dict(r)
         r["first_name"], r["last_name"] = nice(r["first_name"]), nice(r["last_name"])
@@ -102,8 +125,9 @@ def export(con, out_dir: str) -> None:
                        for e in json.loads(g["timeline"] or "[]")],
             "pbp": json.loads(g["pbp"] or "[]"),
             "players": [
-                {k: r[k] for k in ("team", "player", "first_name", "last_name", "number", "position",
-                                   "starter", "played", "is_keeper") + STAT_COLS}
+                {**{k: r[k] for k in ("team", "player", "first_name", "last_name", "number", "position",
+                                      "starter", "played", "is_keeper") + STAT_COLS},
+                 "yr": roster_for(r["team"], r["first_name"], r["last_name"]).get("class_year")}
                 for r in sorted(pg.get(g["id"], []), key=lambda r: (-r["starter"], -(r["minutes"] or 0)))
             ],
             "h2h": h2h,
@@ -120,7 +144,9 @@ def export(con, out_dir: str) -> None:
         tot = {c: sum((r[c] or 0) for r in rows) for c in STAT_COLS}
         tot["gp"] = sum(1 for r in rows if r["played"])
         tot["gs"] = sum(1 for r in rows if r["starter"])
+        ros = roster_for(last["team"], last["first_name"], last["last_name"])
         info = {"key": key, "team": last["team"], "first": last["first_name"], "last": last["last_name"],
+                "yr": ros.get("class_year"), "home": ros.get("hometown"),
                 "num": last["number"], "pos": last["position"], "gk": any(r["is_keeper"] for r in rows)}
         squads[last["team"]].append({**info, **tot})
         search_players.append([key, f"{last['first_name']} {last['last_name']}", last["team"]])

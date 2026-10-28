@@ -47,6 +47,8 @@
   };
   const confName = (c) => !c ? "Other" : CONF[c] || (c.length <= 5 ? c.toUpperCase() : c.replace(/-/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()));
 
+  const YEARS = { Fr: "Freshman", So: "Sophomore", Jr: "Junior", Sr: "Senior", Gr: "Graduate" };
+  const yrTag = (y) => y ? ` <span class="yr" title="${esc(YEARS[y] || y)}">${esc(y)}</span>` : "";
   const DIVS = { "1": "NCAA Division I", "2": "NCAA Division II", J1: "NJCAA Division I", J2: "NJCAA Division II", J3: "NJCAA Division III", J: "NJCAA" };
   const DIV_ORDER = ["1", "2", "J1", "J2", "J3", "J"];
   const divLabel = (d) => DIVS[String(d)] || "";
@@ -248,7 +250,7 @@
     if (!ps.length) return `<p class="muted">No lineup published.</p>`;
     const row = (p) => `<tr class="${p.starter ? "" : p.played ? "sub-row" : "dnp"}">
       <td class="num">${esc(p.number)}</td>
-      <td class="l"><a href="#/player/${encodeURIComponent(p.player)}">${esc(p.first_name)} ${esc(p.last_name)}</a></td>
+      <td class="l"><a href="#/player/${encodeURIComponent(p.player)}">${esc(p.first_name)} ${esc(p.last_name)}</a>${yrTag(p.yr)}</td>
       <td class="l hide-sm muted">${esc((p.position || "").slice(0, 3))}</td>
       <td>${p.played ? p.minutes ?? "" : ""}</td><td>${p.goals || ""}</td><td>${p.assists || ""}</td>
       <td>${p.played ? p.shots : ""}</td><td>${p.played ? p.shots_on_goal : ""}</td>
@@ -349,8 +351,8 @@
         const squad = d.squad.slice().sort((a, b) => (b[sortKey] || 0) - (a[sortKey] || 0) || a.last.localeCompare(b.last));
         const gks = d.squad.filter((p) => p.gk && p.minutes);
         body = `<div class="panel"><div class="tablewrap"><table>
-          <thead><tr><th>#</th><th class="l">Player</th><th class="l hide-sm">Pos</th>${cols.map(([k, l]) => `<th><button data-sort="${k}" style="border:0;background:none;cursor:pointer;color:${sortKey === k ? "var(--ink)" : "inherit"};font-weight:${sortKey === k ? 700 : 500}">${l}</button></th>`).join("")}</tr></thead>
-          <tbody>${squad.map((p) => `<tr><td class="num">${esc(p.num)}</td><td class="l"><a href="#/player/${encodeURIComponent(p.key)}">${esc(p.first)} ${esc(p.last)}</a></td><td class="l hide-sm muted">${esc((p.pos || "").slice(0, 3))}</td>${cols.map(([k]) => `<td>${p[k] ?? 0}</td>`).join("")}</tr>`).join("")}</tbody>
+          <thead><tr><th>#</th><th class="l">Player</th><th class="l hide-sm">Pos</th><th class="l" title="Class year">Yr</th>${cols.map(([k, l]) => `<th><button data-sort="${k}" style="border:0;background:none;cursor:pointer;color:${sortKey === k ? "var(--ink)" : "inherit"};font-weight:${sortKey === k ? 700 : 500}">${l}</button></th>`).join("")}</tr></thead>
+          <tbody>${squad.map((p) => `<tr><td class="num">${esc(p.num)}</td><td class="l"><a href="#/player/${encodeURIComponent(p.key)}">${esc(p.first)} ${esc(p.last)}</a></td><td class="l hide-sm muted">${esc((p.pos || "").slice(0, 3))}</td><td class="l muted" title="${esc(YEARS[p.yr] || "")}">${esc(p.yr || "")}</td>${cols.map(([k]) => `<td>${p[k] ?? 0}</td>`).join("")}</tr>`).join("")}</tbody>
         </table></div></div>
         ${gks.length ? `<div class="panel"><h3>Goalkeepers</h3><div class="tablewrap"><table><thead><tr><th class="l">Player</th><th>GP</th><th>Min</th><th>Saves</th><th>GA</th></tr></thead><tbody>${gks.map((p) => `<tr><td class="l"><a href="#/player/${encodeURIComponent(p.key)}">${esc(p.first)} ${esc(p.last)}</a></td><td>${p.gp}</td><td>${p.minutes}</td><td>${p.saves}</td><td>${p.goals_allowed}</td></tr>`).join("")}</tbody></table></div></div>` : ""}`;
       }
@@ -391,10 +393,11 @@
         ${kit(p.team, true)}
         <div>
           <h1>${esc(p.first)} ${esc(p.last)}</h1>
-          <p>${p.num ? `#${esc(p.num)}, ` : ""}${esc((p.pos || "").toLowerCase().replace(/^\w/, (c) => c.toUpperCase()))}${p.pos ? ", " : ""}<a href="#/team/${esc(p.team)}">${esc(T.name)}</a></p>
+          <p>${p.num ? `#${esc(p.num)}, ` : ""}${esc((p.pos || "").toLowerCase().replace(/^\w/, (c) => c.toUpperCase()))}${p.pos ? ", " : ""}${p.yr ? `${esc(YEARS[p.yr] || p.yr)}, ` : ""}<a href="#/team/${esc(p.team)}">${esc(T.name)}</a></p>
+          ${p.home ? `<p class="muted">From ${esc(p.home)}</p>` : ""}
           <div class="facts">
-            <div><b>${tot.gp}</b><small>Games</small></div><div><b>${tot.gs}</b><small>Starts</small></div>
-            <div><b>${tot.minutes}</b><small>Minutes</small></div>
+            <div><b>${tot.gp}</b><small>Games</small></div>
+            ${tot.gs || tot.minutes ? `<div><b>${tot.gs}</b><small>Starts</small></div><div><b>${tot.minutes}</b><small>Minutes</small></div>` : ""}
             ${p.gk ? `<div><b>${tot.saves}</b><small>Saves</small></div><div><b>${tot.goals_allowed}</b><small>Goals against</small></div>`
                    : `<div><b>${tot.goals}</b><small>Goals</small></div><div><b>${tot.assists}</b><small>Assists</small></div><div><b>${tot.shots}</b><small>Shots</small></div>`}
           </div>
@@ -408,7 +411,7 @@
           return `<tr class="${r.played ? "" : "dnp"}"><td class="l muted">${esc(shortDate(g))}</td>
             <td class="l">${r.home ? "vs" : "@"} <a href="#/team/${esc(opp)}">${esc(team(opp).name)}</a></td>
             <td><a href="#/game/${g.id}">${res ? `<span class="res ${res}">${res}</span> ` : ""}${my ?? ""}–${th ?? ""}</a></td>
-            <td>${r.played ? r.minutes ?? "" : "DNP"}</td>
+            <td>${r.played ? r.minutes ?? "" : g.src === "njcaa" ? "–" : "DNP"}</td>
             ${p.gk ? `<td>${r.saves ?? ""}</td><td>${r.goals_allowed ?? ""}</td>` : `<td>${r.goals || ""}</td><td>${r.assists || ""}</td><td>${r.played ? r.shots : ""}</td><td>${r.played ? r.shots_on_goal : ""}</td>`}
             <td>${r.yellow || ""}</td></tr>`;
         }).join("")}</tbody></table></div></div>`;
@@ -457,9 +460,10 @@
       </div>
       ${cat === "points" ? `<p class="muted" style="margin:-4px 0 10px">Points: 2 per goal, 1 per assist (NCAA scoring).</p>` : ""}
       <div class="panel"><div class="tablewrap"><table>
-        <thead><tr><th>#</th><th class="l">Player</th><th class="l">Team</th><th>GP</th>${cat === "saves" ? "<th>Min</th><th>GA</th>" : "<th>G</th><th>A</th>"}<th>${esc(cats.find((c) => c[0] === cat)[1])}</th></tr></thead>
+        <thead><tr><th>#</th><th class="l">Player</th><th class="l">Yr</th><th class="l">Team</th><th>GP</th>${cat === "saves" ? "<th>Min</th><th>GA</th>" : "<th>G</th><th>A</th>"}<th>${esc(cats.find((c) => c[0] === cat)[1])}</th></tr></thead>
         <tbody>${rows.map((p, i) => `<tr><td class="num">${i + 1}</td>
           <td class="l"><a href="#/player/${encodeURIComponent(p.key)}">${esc(p.first)} ${esc(p.last)}</a></td>
+          <td class="l muted" title="${esc(YEARS[p.yr] || "")}">${esc(p.yr || "")}</td>
           <td class="l"><a href="#/team/${esc(p.team)}" style="display:inline-flex;gap:8px;align-items:center">${kit(p.team)}${esc(team(p.team).name)}</a></td>
           <td>${p.gp}</td>${cat === "saves" ? `<td>${p.minutes}</td><td>${p.goals_allowed}</td>` : `<td>${p.goals}</td><td>${p.assists}</td>`}<td><b>${val(p)}</b></td></tr>`).join("")}</tbody>
       </table></div></div>`;

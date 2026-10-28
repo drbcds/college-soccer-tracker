@@ -81,6 +81,18 @@ CREATE TABLE IF NOT EXISTS player_games (
     PRIMARY KEY (game_id, team, player)
 );
 CREATE INDEX IF NOT EXISTS pg_player ON player_games(player);
+
+CREATE TABLE IF NOT EXISTS rosters (
+    team           TEXT,
+    slug           TEXT,                  -- name slug, e.g. 'alan-rutkowski'
+    name           TEXT,
+    class_year     TEXT,                  -- Fr | So | Jr | Sr | Gr
+    number         TEXT,
+    position       TEXT,
+    hometown       TEXT,
+    height         TEXT,
+    PRIMARY KEY (team, slug)
+);
 """
 
 
@@ -97,7 +109,7 @@ def connect(path: str | Path) -> sqlite3.Connection:
 
 # Columns added after the first release; ALTER keeps existing databases working.
 MIGRATIONS = {
-    "teams": {"assoc": "TEXT DEFAULT 'ncaa'", "logo": "TEXT", "school_tenant": "TEXT"},
+    "teams": {"assoc": "TEXT DEFAULT 'ncaa'", "logo": "TEXT", "school_tenant": "TEXT", "site": "TEXT", "roster_at": "TEXT"},
     "games": {"source": "TEXT DEFAULT 'ncaa'", "has_box": "INTEGER"},
 }
 
