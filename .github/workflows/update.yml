@@ -71,7 +71,7 @@ jobs:
           if [ "${{ steps.mode.outputs.full }}" = "true" ]; then
             python -m scraper backfill --limit 20000 --max-minutes 60
           else
-            python -m scraper backfill --limit 300 --max-minutes 4
+            python -m scraper backfill --limit 1500 --max-minutes 7
           fi
 
       - name: Save database

@@ -89,8 +89,8 @@ def cmd_backfill(con, client, args):
     # NJCAA games whose box score isn't published yet are re-checked at most every 6 hours.
     rows = con.execute(
         "SELECT id, source FROM games WHERE status='final' AND (detail_state IS NULL OR detail_state!='F') "
-        "AND NOT (detail_state='N' AND detail_at > strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-6 hours')) "
-        "AND NOT (source='njcaa' AND detail_state='N' AND date < date('now', '-10 days')) "
+        "AND NOT (COALESCE(detail_state, '')='N' AND detail_at > strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-6 hours')) "
+        "AND NOT (COALESCE(source, 'ncaa')='njcaa' AND COALESCE(detail_state, '')='N' AND date < date('now', '-10 days')) "
         "ORDER BY date DESC LIMIT ?", (args.limit,)).fetchall()
     started = time.monotonic()
     done = 0
