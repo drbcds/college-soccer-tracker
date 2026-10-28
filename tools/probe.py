@@ -4,8 +4,8 @@ The development workspace cannot reach school or NCAA sites, so this script
 runs inside GitHub Actions, saves what each source returns into the output
 folder, and the workflow commits that folder to the `samples` branch.
 
-Current target: NJCAA (junior college). njcaa.org is a JavaScript app, so we
-download its bundle and look for the API it calls.
+Current target: NJCAA (junior college). njcaa.org runs on "Ardor SportsHub":
+site settings live at /data/site.json and point to a public GraphQL API.
 """
 import json
 import re
@@ -21,51 +21,78 @@ OUT.mkdir(parents=True, exist_ok=True)
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/129.0 Safari/537.36")
 S = requests.Session()
-S.headers.update({"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
+S.headers.update({"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9",
+                  "Origin": "https://www.njcaa.org", "Referer": "https://www.njcaa.org/"})
 log = []
 
 
-def get(name, url, **kw):
+def record(name, url, r=None, err=None, ext=None):
     entry = {"name": name, "url": url}
-    try:
-        r = S.get(url, timeout=30, **kw)
+    if r is not None:
         ct = r.headers.get("content-type", "")
-        ext = ".json" if "json" in ct else ".js" if "javascript" in ct else ".xml" if "xml" in ct else ".html"
+        ext = ext or (".json" if "json" in ct else ".js" if "javascript" in ct else ".html")
         (OUT / f"{name}{ext}").write_bytes(r.content)
-        entry.update(status=r.status_code, bytes=len(r.content), ctype=ct, final_url=r.url)
-        time.sleep(0.7)
-        log.append(entry); print(json.dumps(entry))
+        entry.update(status=r.status_code, bytes=len(r.content), ctype=ct)
+    if err:
+        entry["error"] = str(err)
+    log.append(entry)
+    print(json.dumps(entry))
+
+
+def get(name, url):
+    try:
+        r = S.get(url, timeout=30)
+        record(name, url, r)
+        time.sleep(0.5)
         return r
     except Exception as e:  # noqa: BLE001
-        entry["error"] = str(e); log.append(entry); print(json.dumps(entry))
-        return None
+        record(name, url, err=e)
 
 
-home = get("njcaa_home", "https://www.njcaa.org/")
-urls = set()
-if home is not None and home.ok:
-    for src in re.findall(r'src="([^"]+\.js)"', home.text):
-        js = get("njcaa_bundle_" + re.sub(r"\W+", "_", src)[-40:], urllib.parse.urljoin(home.url, src))
-        if js is not None and js.ok:
-            urls |= set(re.findall(r'https?://[A-Za-z0-9.\-]+(?:/[A-Za-z0-9_\-./{}$:%]*)?', js.text))
-            # relative API paths
-            urls |= {"REL " + m for m in set(re.findall(r'["\'`](/api/[^"\'`]{2,120})["\'`]', js.text))}
-            for m in set(re.findall(r'["\'`]([^"\'`]{0,80}(?:soccer|msoc|boxscore|schedule|scoreboard|stats)[^"\'`]{0,80})["\'`]', js.text, re.I)):
-                urls.add("STR " + m)
-(OUT / "njcaa_urls.txt").write_text("\n".join(sorted(urls)))
+def gql(name, url, query, variables=None):
+    try:
+        r = S.post(url, json={"query": query, "variables": variables or {}}, timeout=60)
+        record(name, url, r, ext=".json")
+        time.sleep(0.5)
+        return r
+    except Exception as e:  # noqa: BLE001
+        record(name, url, err=e)
 
-# Known PrestoSports-style league pages used by JUCO conferences
-for name, url in {
-    "kjccc_msoc_schedule": "https://www.kjccc.org/sports/msoc/2026-27/schedule",
-    "kjccc_msoc_index": "https://www.kjccc.org/sports/msoc/index",
-    "northeast_msoc_schedule": "https://northeasthawks.com/sports/msoc/2026-27/schedule",
-    "njcaa_stats_site": "https://njcaastats.prestosports.com/sports/msoc/2026-27/div1/schedule",
-}.items():
-    r = get(name, url)
-    if r is not None and r.ok:
-        links = sorted(set(re.findall(r'href="([^"]*boxscores/[^"]*)"', r.text)))
-        (OUT / f"{name}_boxlinks.txt").write_text("\n".join(links))
-        if links:
-            get(name + "_boxscore", urllib.parse.urljoin(r.url, links[-1]))
+
+site = get("njcaa_site_config", "https://www.njcaa.org/data/site.json")
+cfg = {}
+try:
+    cfg = site.json()
+except Exception:  # noqa: BLE001
+    pass
+settings = cfg.get("settings") or {}
+gurl, tenant = settings.get("publicGraphqlUrl"), settings.get("tenantId")
+print("graphql:", gurl, "tenant:", tenant)
+
+# Every URL mentioned in the config (remote modules, APIs)
+blob = json.dumps(cfg)
+urls = sorted(set(re.findall(r'https?://[^"\\\s]+', blob)))
+(OUT / "njcaa_config_urls.txt").write_text("\n".join(urls))
+
+# Download remote module code (schedule/stats widgets) to learn their queries
+for i, u in enumerate(u for u in urls if re.search(r"remoteEntry|\.js(\?|$)|mf-manifest", u)):
+    r = get(f"njcaa_remote_{i}", u)
+    if r is not None and r.ok and "json" in r.headers.get("content-type", ""):
+        try:
+            man = r.json()
+            base = u.rsplit("/", 1)[0]
+            for j, a in enumerate(re.findall(r'"([^"]+\.js)"', json.dumps(man))[:40]):
+                get(f"njcaa_remote_{i}_asset_{j}", urllib.parse.urljoin(base + "/", a))
+        except Exception:  # noqa: BLE001
+            pass
+
+if gurl:
+    INTRO = """query { __schema { queryType { name } types { name kind
+      fields { name args { name type { name kind ofType { name kind ofType { name kind } } } }
+               type { name kind ofType { name kind ofType { name kind } } } } } } }"""
+    gql("njcaa_gql_introspection", gurl, INTRO)
+    gql("njcaa_gql_teams", gurl,
+        "query($t: ID!) { listTeams(tenantId: $t, sport: \"soccer\", gender: \"men\", season: \"2026\", limit: 5) { id } }",
+        {"t": tenant})
 
 (OUT / "_log.json").write_text(json.dumps(log, indent=2))
