@@ -69,7 +69,7 @@ def fetch_njcaa(con, client, max_age_days: int = 6) -> int:
 
 
 # ------------------------------------------------------------------ NCAA (school sites)
-SITE_RE = re.compile(r'<a href="(https?://[^"]+)"[^>]*>\s*<span class="icon-web">', re.I)
+SITE_RE = re.compile(r'<a\s+href="(https?://[^"]+)"[^>]*>\s*<span class="icon-web">', re.I)
 LINK_RE = re.compile(r'href="([^"]*(?:mens-soccer|msoc|m-soccer)[^"]*/roster/([a-z0-9-]+)/(\d+))"', re.I)
 TAG_RE = re.compile(r"<[^>]+>")
 
@@ -124,11 +124,12 @@ def fetch_ncaa(con, max_age_days: int = 6, max_minutes: float = 20) -> int:
     for t in teams:
         if time.monotonic() - started > max_minutes * 60:
             break
-        if _fresh(t["roster_at"], max_age_days):
+        # site NULL = never looked up; '' = looked up, none found.
+        if t["site"] is not None and _fresh(t["roster_at"], max_age_days):
             continue
         try:
-            site = t["site"] or find_site(s, t["seo"])
-            if site and site != t["site"]:
+            site = t["site"] if t["site"] is not None else (find_site(s, t["seo"]) or "")
+            if site != t["site"]:
                 con.execute("UPDATE teams SET site=? WHERE seo=?", (site, t["seo"]))
             players = []
             if site:
