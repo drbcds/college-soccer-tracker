@@ -110,8 +110,9 @@ def season_label(season: int) -> str:
 
 
 PLACEHOLDER = re.compile(
-    r"^(tba|tbd|bye|winner|loser|seed|game \d|#?\d+ seed|region\b|district\b|njcaa\b|semi|quarter|final|championship|"
-    r"first round|second round|east|west|north|south|opponent|home team|away team)", re.I)
+    r"^(tba|tbd|bye\b|winner|loser|seed\b|game \d|#?\d+ seed|region\b|district\b|njcaa\b|semi-?final|quarter[- ]?finals?|"
+    r"final\b|finals\b|championship|first round|second round|opponent\b|home team|away team|alumni\b|intersquad|"
+    r"scrimmage|national championship|(east|west|north|south)$)", re.I)
 
 
 def is_placeholder(name: str) -> bool:
@@ -137,9 +138,10 @@ class TeamIndex:
         """Our team slug, or None for a bracket placeholder ('TBA', 'Semifinal', 'Region 12 Champion')."""
         if team_season_id and str(team_season_id) in self.by_ts:
             return self.by_ts[str(team_season_id)]
-        k = name_key(name or "")
-        if k and self.by_key.get(k):
-            return self.by_key[k]
+        for variant in (name or "", re.sub(r"\s*\([^)]*\)", "", name or "")):
+            k = name_key(variant)
+            if k and self.by_key.get(k):
+                return self.by_key[k]
         if is_placeholder(name):
             return None
         # Opponent outside the NJCAA (NAIA, NCAA, club...): keep a placeholder team.

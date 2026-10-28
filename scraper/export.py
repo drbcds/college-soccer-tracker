@@ -51,6 +51,9 @@ def export(con, out_dir: str) -> None:
             r[res] += 1
             r["form"].append(res.upper())
 
+    # Drop placeholder opponents that no longer appear in any game.
+    used = {g["home"] for g in games} | {g["away"] for g in games}
+    team_rows = {k: v for k, v in team_rows.items() if k in used or (v.get("assoc") or "ncaa") != "other"}
     teams_out = []
     for seo, t in team_rows.items():
         r = rec.get(seo, {"w": 0, "l": 0, "t": 0, "gf": 0, "ga": 0, "form": []})

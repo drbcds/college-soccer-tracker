@@ -447,7 +447,8 @@
     const L = (await load("leaders.json")) || {};
     const div = params.get("div") || "1", cat = params.get("cat") || "goals";
     const cats = [["goals", "Goals"], ["assists", "Assists"], ["points", "Points"], ["saves", "Saves"]];
-    const rows = (L[div] || {})[cat] || [];
+    const val0 = (p) => cat === "points" ? 2 * p.goals + p.assists : p[cat];
+    const rows = ((L[div] || {})[cat] || []).filter((p) => val0(p) > 0);
     const val = (p) => cat === "points" ? 2 * p.goals + p.assists : p[cat];
     $main.innerHTML = `
       <div class="filters">
