@@ -4,9 +4,12 @@ The development workspace cannot reach school or NCAA sites, so this script
 runs inside GitHub Actions, saves what each source returns into the output
 folder, and the workflow commits that folder to the `samples` branch.
 
-Current target: NJCAA public GraphQL API (Ardor SportsHub).
+Current target: player class year (Fr/So/Jr/Sr/Gr).
+- NJCAA: roster query on the public GraphQL API.
+- NCAA: school athletics site (found via ncaa.com school pages), roster page.
 """
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -15,63 +18,55 @@ import requests
 
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "samples")
 OUT.mkdir(parents=True, exist_ok=True)
-URL = "https://public-graphql-api.ardorsportshub.com/public/graphql"
-T = "404933495157163011"  # NJCAA tenant
 S = requests.Session()
-S.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/129.0 Safari/537.36",
-                  "Origin": "https://www.njcaa.org", "Referer": "https://www.njcaa.org/"})
+S.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/129.0 Safari/537.36"})
 log = []
 
 
-def gql(name, query, variables):
-    t0 = time.time()
+def save(name, r, ext):
+    (OUT / f"{name}{ext}").write_bytes(r.content)
+    e = {"name": name, "status": r.status_code, "bytes": len(r.content), "url": r.url}
+    log.append(e); print(json.dumps(e))
+
+
+def get(name, url, ext=".html"):
     try:
-        r = S.post(URL, json={"query": query, "variables": variables}, timeout=90)
-        (OUT / f"{name}.json").write_bytes(r.content)
-        entry = {"name": name, "status": r.status_code, "bytes": len(r.content), "secs": round(time.time() - t0, 1)}
-        log.append(entry); print(json.dumps(entry))
+        r = S.get(url, timeout=30)
+        save(name, r, ext)
         time.sleep(0.5)
-        return r.json()
+        return r
     except Exception as e:  # noqa: BLE001
-        log.append({"name": name, "error": str(e)}); print(name, e)
-        return {}
+        log.append({"name": name, "error": str(e), "url": url}); print(name, e)
 
 
-GAME_FIELDS = """gameId: id entryKind title summary sportId date time scheduledAt timezone opponentName
-  homeTeamName awayTeamName isHome homeScore awayScore status result isNeutralSite location sport metadata
-  hasBoxscore boxscoreGameId gameType eventType eventTypeName seasonPhase isPostseason isTournament
-  isAssociation isNational isRegion isConference isDivision countsInOverallRecord countsInNjcaaRecord
-  official countsAsPlayed recordOutcome"""
+# ---- NJCAA rosters
+GQL = "https://public-graphql-api.ardorsportshub.com/public/graphql"
+NJ = "404933495157163011"
+H = {"Origin": "https://www.njcaa.org", "Referer": "https://www.njcaa.org/"}
+teams = S.post(GQL, headers=H, json={"query": """query($t: ID!) { listTeams(tenantId: $t, limit: 5000, sport: "msoc", season: "2026-27") { id tenantId displayName } }""",
+                                     "variables": {"t": NJ}}).json()["data"]["listTeams"]
+ROSTER = """query($t: ID!, $team: ID!) { listPlayersForTeam(tenantId: $t, teamId: $team, limit: 1000) {
+  id personId firstName lastName jersey position year redshirt isRedshirt height weight hometown active metadata } }"""
+for i, t in enumerate([x for x in teams if "Ocean County" in x["displayName"] or "Western Nebraska" in x["displayName"]][:2]):
+    for label, tenant in (("nj", NJ), ("school", t["tenantId"])):
+        r = S.post(GQL, headers=H, json={"query": ROSTER, "variables": {"t": tenant, "team": t["id"]}})
+        save(f"njroster_{i}_{label}", r, ".json")
 
-seasons = gql("nj_seasons", "query($t: ID!) { listTenantSeasons(tenantId: $t) { current seasons { seasonId season current status archival } } }", {"t": T})
-cur = ((seasons.get("data") or {}).get("listTenantSeasons") or {}).get("current") or "2026-27"
-print("current season:", cur)
+# ---- NCAA: athletics site from ncaa.com school page, then the roster page
+sites = {}
+for seo in ("north-carolina", "young-harris", "marist", "salem-intl", "lynn", "cal-st-la", "west-va-wesleyan", "mercyhurst"):
+    r = get(f"ncaaschool_{seo}", f"https://www.ncaa.com/schools/{seo}")
+    if r is not None and r.ok:
+        m = re.findall(r'href="(https?://[^"]+)"[^>]*>\s*(?:Official\s+)?(?:Athletics\s+)?Website', r.text, re.I)
+        links = re.findall(r'class="[^"]*school-(?:info|links)[^"]*"[\s\S]{0,2000}', r.text)
+        sites[seo] = m[0] if m else None
+        (OUT / f"ncaaschool_{seo}_links.txt").write_text("\n".join(sorted(set(re.findall(r'href="(https?://[^"]+)"', r.text)))))
+print(sites)
+for seo, base in sites.items():
+    if base:
+        base = base.rstrip("/")
+        get(f"roster_{seo}", f"{base}/sports/mens-soccer/roster")
+        get(f"roster_{seo}_alt", f"{base}/sports/msoc/2026-27/roster")
 
-sports = gql("nj_sports", "query($t: ID!, $s: String) { listTeamSports(tenantId: $t, season: $s) { supported groups { id sport sportName gender sportId genderId segment seasonSegmentId } } }", {"t": T, "s": cur})
-groups = ((sports.get("data") or {}).get("listTeamSports") or {}).get("groups") or []
-soccer = [g for g in groups if "soccer" in (g.get("sportName") or "").lower() or "soc" in (g.get("sport") or "").lower()]
-print("soccer groups:", soccer)
-codes = list(dict.fromkeys([g["sport"] for g in soccer if (g.get("gender") or "").lower().startswith("m")] or ["msoc"]))
-
-TEAMS_Q = """query($t: ID!, $sport: String!, $season: String!) { listTeams(tenantId: $t, limit: 5000, sport: $sport, season: $season) {
-  id tenantId teamId sportId seasonId genderId schoolId schoolName officialSchoolName displayName name sport season gender
-  teamType teamLevel regionId regionName conferenceId conferenceName logo { url } metadata } }"""
-SCHED_Q = "query($t: ID!, $sport: String, $season: String, $limit: Int) { schedule(tenantId: $t, sport: $sport, season: $season, limit: $limit) { games { " + GAME_FIELDS + " } } }"
-
-for code in codes:
-    gql(f"nj_teams_{code}", TEAMS_Q, {"t": T, "sport": code, "season": cur})
-    sched = gql(f"nj_schedule_{code}", SCHED_Q, {"t": T, "sport": code, "season": cur, "limit": 500})
-    games = (((sched.get("data") or {}).get("schedule") or {}).get("games")) or []
-    print(code, "games:", len(games))
-    done = [g for g in games if g.get("hasBoxscore")]
-    for i, g in enumerate(done[-2:]):
-        gid = g.get("boxscoreGameId") or g.get("gameId")
-        gql(f"nj_box_{code}_{i}", """query($t: ID!, $g: ID!) { getGame(tenantId: $t, id: $g) { id tenantId homeTeamId awayTeamId sport date time
-          scheduledAt timezone homeTeamName awayTeamName homeScore awayScore status location hasBoxscore metadata }
-          gameBoxscoreDetails(tenantId: $t, gameId: $g) { gameId game hasBoxscore teams { teamSeasonId tenantId division homeAway name score periods stats }
-          players { playerId number name position team stats } plays } }""", {"t": T, "g": str(gid)})
-
-gql("nj_live", """query($t: ID!) { listLiveGamesForTenant(tenantId: $t) { gameId tenantId status period sport clock { timeRemaining }
-  home { score name shortName color } away { score name shortName color } recentEvents { ts type summary team points } lastUpdated } }""", {"t": T})
-
+(OUT / "_sites.json").write_text(json.dumps(sites, indent=2))
 (OUT / "_log.json").write_text(json.dumps(log, indent=2))
