@@ -49,7 +49,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.05; m
 
 /* ---------- top bar */
 .top { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
-.top-inner { max-width: 1080px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.top { padding-top: env(safe-area-inset-top); }
+.top-inner { max-width: 1080px; margin: 0 auto; padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 9px; font: 700 21px/1 var(--display); letter-spacing: .01em; }
 .brand:hover { text-decoration: none; }
 .brand svg { width: 28px; height: 28px; }
@@ -75,7 +76,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.05; m
 .results small { color: var(--muted); margin-left: auto; }
 
 main { max-width: 1080px; margin: 0 auto; padding: 18px 16px 40px; outline: none; }
-.foot { max-width: 1080px; margin: 0 auto; padding: 0 16px 32px; color: var(--muted); font-size: 14px; }
+.foot { max-width: 1080px; margin: 0 auto; padding: 0 16px calc(32px + env(safe-area-inset-bottom)); color: var(--muted); font-size: 14px; }
 
 /* ---------- team colour chip: the signature element */
 .kit {

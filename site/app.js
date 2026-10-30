@@ -564,4 +564,15 @@
     if (t) document.getElementById("updated").textContent = `Last update ${new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`;
   }).catch(() => {});
   route();
+
+  // Installable app (home-screen icon, opens full screen, last scores available offline).
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+  // Coming back to the app after a while: refresh what's on screen.
+  let hiddenAt = 0;
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) hiddenAt = Date.now();
+    else if (hiddenAt && Date.now() - hiddenAt > 60000) { liveMetaAt = 0; mainMetaP = null; route(); }
+  });
 })();
