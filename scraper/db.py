@@ -93,6 +93,13 @@ CREATE TABLE IF NOT EXISTS rosters (
     height         TEXT,
     PRIMARY KEY (team, slug)
 );
+
+CREATE TABLE IF NOT EXISTS tourney_labels (
+    team           TEXT,
+    date           TEXT,                  -- YYYY-MM-DD
+    label          TEXT,                  -- e.g. 'Big South Championship First Round'
+    PRIMARY KEY (team, date, label)
+);
 """
 
 
@@ -109,8 +116,9 @@ def connect(path: str | Path) -> sqlite3.Connection:
 
 # Columns added after the first release; ALTER keeps existing databases working.
 MIGRATIONS = {
-    "teams": {"assoc": "TEXT DEFAULT 'ncaa'", "logo": "TEXT", "school_tenant": "TEXT", "site": "TEXT", "roster_at": "TEXT"},
-    "games": {"source": "TEXT DEFAULT 'ncaa'", "has_box": "INTEGER"},
+    "teams": {"assoc": "TEXT DEFAULT 'ncaa'", "logo": "TEXT", "school_tenant": "TEXT", "site": "TEXT", "roster_at": "TEXT",
+              "sched_at": "TEXT"},
+    "games": {"source": "TEXT DEFAULT 'ncaa'", "has_box": "INTEGER", "tourney": "INTEGER"},
 }
 
 

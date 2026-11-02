@@ -112,7 +112,7 @@ def season_label(season: int) -> str:
 PLACEHOLDER = re.compile(
     r"^(tba|tbd|bye\b|winner|loser|seed\b|game \d|#?\d+ seed|region\b|district\b|njcaa\b|semi-?final|quarter[- ]?finals?|"
     r"final\b|finals\b|championship|first round|second round|opponent\b|home team|away team|alumni\b|intersquad|"
-    r"scrimmage|national championship|(east|west|north|south)$)", re.I)
+    r"scrimmage|national championship|(east|west|north|south)$|semi[- ]?finals?\b|quarter[- ]?finals?\b|t\.?\s?b\.?\s?[ad]\.?$)", re.I)
 
 
 def is_placeholder(name: str) -> bool:
@@ -201,6 +201,18 @@ def _round(g: dict, md: dict) -> str | None:
     return name or None
 
 
+def _is_tourney(g: dict, md: dict, date: str) -> int:
+    """Postseason/bracket game (region tournament or national championship)."""
+    flags = any(bool(x.get(k)) for x in (g, md) for k in ("isPostseason", "isPlayoff", "isBracket", "isChampionship"))
+    kind = " ".join(str(x.get(k) or "") for x in (g, md) for k in ("gameType", "eventType", "eventTypeName")).lower()
+    if flags or "postseason" in kind or "bracket" in kind or "championship" in kind:
+        return 1
+    # 'Tournament game' is also used for early-season invitationals; only count it late in the season.
+    if (g.get("isTournament") or md.get("isTournament") or "tournament" in kind) and date[5:] >= "10-15":
+        return 1
+    return 0
+
+
 def ingest_games(con, games: list[dict], idx: TeamIndex, season: int) -> int:
     stamp = now()
     n = 0
@@ -261,7 +273,7 @@ def ingest_games(con, games: list[dict], idx: TeamIndex, season: int) -> int:
             "has_time": has_time, "status": status, "state": g.get("status"), "period": "", "clock": "",
             "home": home, "away": away, "home_score": hs, "away_score": as_, "winner": winner,
             "venue": g.get("location") or md.get("location"),
-            "round": _round(g, md),
+            "round": _round(g, md), "tourney": _is_tourney(g, md, date),
             "source": "njcaa", "has_box": 1 if (g.get("hasBoxscore") or md.get("hasBoxscore")) else 0,
             "updated_at": stamp,
         }, ("id",))

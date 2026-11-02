@@ -18,8 +18,10 @@ Everything runs for free on GitHub; nothing needs to be installed.
 | `scraper/ncaa.py` | Client for NCAA.com's data feed (D1, D2) |
 | `scraper/njcaa.py` | NJCAA: teams, schedules and box scores from the public GraphQL API behind njcaa.org |
 | `scraper/ingest.py` | Turns feed responses into database rows (games, teams, player box scores, match timeline) |
+| `scraper/schedules.py` | Reads school schedule pages for conference-tournament labels (playoff season only) |
+| `scraper/brackets.py` | Builds playoff brackets: NCAA conference tournaments and NJCAA region tournaments |
 | `scraper/export.py` | Writes the JSON files the website reads |
-| `scraper/__main__.py` | Commands: `season`, `live`, `backfill`, `export` |
+| `scraper/__main__.py` | Commands: `season`, `live`, `livewatch`, `backfill`, `rosters`, `schedules`, `export` |
 | `site/` | The website |
 | `tools/probe.py` | Diagnostic: saves raw responses from data sources to the `samples` branch |
 

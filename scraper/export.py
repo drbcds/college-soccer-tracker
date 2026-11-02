@@ -8,6 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .ingest import nice
+from . import brackets as brk
+
+# game id -> "ACC Championship · Quarterfinals"; filled by write_brackets() before summaries are written
+ROUND_LABEL: dict[str, str] = {}
 
 STAT_COLS = ("minutes", "goals", "assists", "shots", "shots_on_goal", "pk_goals", "pk_attempts",
              "gw_goals", "fouls", "yellow", "red", "saves", "goals_allowed")
@@ -23,7 +27,8 @@ def game_summary(g) -> dict:
         "id": str(g["id"]), "div": g["division"], "src": g["source"] or "ncaa", "date": g["date"], "t": g["start_epoch"],
         "tm": g["has_time"], "s": g["status"], "per": g["period"], "clk": g["clock"],
         "h": g["home"], "a": g["away"], "hs": g["home_score"], "as": g["away_score"],
-        "hr": g["home_rank"], "ar": g["away_rank"], "w": g["winner"], "rd": g["round"],
+        "hr": g["home_rank"], "ar": g["away_rank"], "w": g["winner"],
+        "rd": ROUND_LABEL.get(str(g["id"])) or g["round"],
     }
 
 
@@ -73,11 +78,31 @@ def game_detail(g, rows, roster_for) -> dict:
     return detail
 
 
+def write_brackets(con, out: Path) -> list[dict]:
+    season = max([r[0] for r in con.execute("SELECT DISTINCT season FROM games WHERE season IS NOT NULL")] or [datetime.now().year])
+    try:
+        bs = brk.build_all(con, season)
+    except Exception:  # noqa: BLE001 - brackets must never break the site build
+        import logging
+        logging.getLogger(__name__).exception("bracket build failed")
+        return []
+    ROUND_LABEL.clear()
+    index = []
+    for b in bs:
+        for gid, rname in b.pop("game_rounds").items():
+            ROUND_LABEL[gid] = f"{b['name'] or ''}|{rname}"
+        _write(out / "brackets" / f"{b['id']}.json", b)
+        index.append({k: b[k] for k in ("id", "assoc", "div", "conf", "name", "status", "champion", "start", "field", "alive")})
+    _write(out / "brackets.json", index)
+    return index
+
+
 def export_live(con, out_dir: str, dates: list[str], game_ids: list[int]) -> dict:
     """Small 'live overlay': today's day lists and the games that just changed."""
     out = Path(out_dir)
     roster_for = roster_lookup(con)
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    write_brackets(con, out)
     for d in dates:
         rows = con.execute("SELECT * FROM games WHERE date=? AND home IS NOT NULL ORDER BY start_epoch, id", (d,)).fetchall()
         _write(out / "days" / f"{d}.json", [game_summary(g) for g in rows])
@@ -92,7 +117,7 @@ def export_live(con, out_dir: str, dates: list[str], game_ids: list[int]) -> dic
             rows.append(r)
         _write(out / "games" / f"{gid}.json", game_detail(g, rows, roster_for))
     live = [game_summary(g) for g in con.execute("SELECT * FROM games WHERE status='live'")]
-    meta = {"updated": stamp, "days": dates, "games": [str(i) for i in game_ids], "live": len(live)}
+    meta = {"updated": stamp, "days": dates, "games": [str(i) for i in game_ids], "live": len(live), "brackets": True}
     _write(out / "live.json", live)
     _write(out / "meta.json", meta)
     return meta
@@ -104,6 +129,7 @@ def export(con, out_dir: str) -> None:
         shutil.rmtree(out)
     out.mkdir(parents=True)
 
+    write_brackets(con, out)
     games = con.execute("SELECT * FROM games WHERE home IS NOT NULL ORDER BY start_epoch, id").fetchall()
     team_rows = {r["seo"]: dict(r) for r in con.execute("SELECT * FROM teams")}
 

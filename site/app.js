@@ -32,11 +32,11 @@
     return liveMeta;
   }
   async function overlay(path, data) {
-    const m = path.match(/^(days|games)\/([^/]+)\.json$/);
+    const m = path.match(/^(days|games|brackets)\/([^/]+)\.json$/) || (path === "brackets.json" ? ["", "brackets", ""] : null);
     if (!m) return data;
     const [lm, mm] = await Promise.all([getLiveMeta(), mainMeta()]);
     if (!lm || (mm && lm.updated <= mm.updated)) return data;
-    if (!(m[1] === "days" ? lm.days : lm.games).includes(m[2])) return data;
+    if (m[1] === "brackets" ? !lm.brackets : !(m[1] === "days" ? lm.days : lm.games).includes(m[2])) return data;
     try {
       const r = await fetch(`${RAW}${path}?t=${Math.floor(Date.now() / 30000)}`);
       if (!r.ok) return data;
@@ -79,6 +79,14 @@
     mec: "Mountain East", "mountain-east": "Mountain East", "east-coast": "East Coast", ecc: "East Coast", ccaa: "CCAA",
     pacwest: "PacWest", rmac: "RMAC", gnac: "GNAC", nsic: "NSIC", miaa: "MIAA", "heartland": "Heartland", ciaa: "CIAA", siac: "SIAC",
   };
+  // Tournament games carry "Tournament name|Round"; the name is empty when no school published it.
+  const rdLabel = (g) => {
+    if (!g.rd) return "";
+    if (!g.rd.includes("|")) return g.rd;
+    const [name, round] = g.rd.split("|");
+    return `${name || `${confName(team(g.h).conf)} Tournament`}, ${round}`;
+  };
+  const tourName = (b) => b.name || (b.conf ? `${confName(b.conf)} Tournament` : "Tournament");
   const confName = (c) => !c ? "Other" : CONF[c] || (c.length <= 5 ? c.toUpperCase() : c.replace(/-/g, " ").replace(/\b\w/g, (m) => m.toUpperCase()));
 
   const YEARS = { Fr: "Freshman", So: "Sophomore", Jr: "Junior", Sr: "Senior", Gr: "Graduate" };
@@ -177,7 +185,7 @@
       const groups = new Map();
       for (const g of list) {
         const hc = team(g.h).conf, ac = team(g.a).conf;
-        const key = g.rd ? g.rd : hc && hc === ac ? confName(hc) : "Non-conference";
+        const key = g.rd ? rdLabel(g) : hc && hc === ac ? confName(hc) : "Non-conference";
         const div = String(g.div ?? "");
         const k = `${key}|${div}`;
         if (!groups.has(k)) groups.set(k, { name: key, div, games: [] });
@@ -345,7 +353,7 @@
           </div>
           <a class="sb-team" href="#/team/${esc(g.a)}">${kit(g.a, true)}<h1>${g.ar ? `<span class="rank">${g.ar}</span> ` : ""}${esc(A.name)}</h1><p>${esc(g.arec || `${A.w}-${A.l}-${A.t}`)}</p></a>
           ${goals.length ? `<div class="scorers"><div>${scorer(g.h)}</div><div>${scorer(g.a)}</div></div>` : ""}
-          <div class="sb-meta">${esc(when)}${where ? `<br>${esc(where)}` : ""}${g.rd ? `<br>${esc(g.rd)}` : ""}</div>
+          <div class="sb-meta">${esc(when)}${where ? `<br>${esc(where)}` : ""}${g.rd ? `<br>${esc(rdLabel(g))}` : ""}</div>
         </section>
         <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-tab="${k}" aria-selected="${tab === k}">${l}</button>`).join("")}</div>
         ${body}`;
@@ -476,6 +484,91 @@
     $main.querySelectorAll("[data-div]").forEach((b) => b.addEventListener("click", () => go(`#/standings?div=${b.dataset.div}`)));
   }
 
+  // ---------------------------------------------------------------- playoffs
+  const PO_TABS = [["all", "All"], ["1", "NCAA D-I"], ["2", "NCAA D-II"], ["J", "NJCAA"]];
+  const shortDay = (iso) => iso ? new Date(iso + "T12:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" }) : "";
+
+  function poStatus(b) {
+    if (b.status === "complete") return `Champion: <b>${esc(team(b.champion).name)}</b>`;
+    if (b.status === "upcoming") return `Starts ${esc(shortDay(b.start))}${b.field ? `, ${b.field} ${b.field === 1 ? "team" : "teams"} confirmed so far` : ""}`;
+    return `${b.alive} ${b.alive === 1 ? "team" : "teams"} left`;
+  }
+
+  async function viewPlayoffs(params) {
+    setNav("playoffs");
+    autoRefresh(null);
+    await teams();
+    const div = params.get("div") || "all";
+    const draw = async (fresh) => {
+      const list = ((await load("brackets.json", { fresh })) || []).filter((b) => divMatch(b.div, div));
+      const order = { live: 0, upcoming: 1, complete: 2 };
+      list.sort((a, b) => order[a.status] - order[b.status] || divRank(a.div) - divRank(b.div) || tourName(a).localeCompare(tourName(b)));
+      const sections = [["live", "In progress"], ["upcoming", "Coming up"], ["complete", "Finished"]]
+        .map(([k, l]) => [l, list.filter((b) => b.status === k)]).filter(([, l]) => l.length);
+      document.getElementById("po-list").innerHTML = sections.length ? sections.map(([label, items]) => `
+        <section class="group"><h2>${label} <span>${items.length}</span></h2>
+          ${items.map((b) => `<a class="po-row" href="#/playoffs/${encodeURIComponent(b.id)}">
+            ${b.champion ? kit(b.champion) : `<span class="po-dot ${b.status}" aria-hidden="true"></span>`}
+            <span class="po-name"><b>${esc(tourName(b))}</b><small>${esc(divLabel(b.div))}</small></span>
+            <span class="po-state">${poStatus(b)}</span>
+          </a>`).join("")}
+        </section>`).join("")
+        : `<div class="empty-state">No playoff brackets yet for this division. They appear as soon as a tournament's first games are scheduled.</div>`;
+    };
+    $main.innerHTML = `
+      <div class="filters"><div class="seg" role="group" aria-label="Division">
+        ${PO_TABS.map(([v, l]) => `<button data-div="${v}" aria-pressed="${div === v}">${l}</button>`).join("")}
+      </div></div>
+      <div id="po-list"><p class="loading">Loading brackets…</p></div>
+      <p class="muted po-note">Brackets are built from the games as they're scheduled, so later rounds show TBD until the matchups are set.</p>`;
+    $main.querySelectorAll("[data-div]").forEach((b) => b.addEventListener("click", () => go(`#/playoffs?div=${b.dataset.div}`)));
+    await draw(true);
+    autoRefresh(() => draw(true));
+  }
+
+  function bracketMatch(m) {
+    const done = m.s === "final", live = m.s === "live";
+    const side = (seo, score, isHome) => {
+      if (!seo) return `<div class="bm-side tbd"><span class="nm">TBD</span><span class="sc"></span></div>`;
+      const won = done && m.w === seo, lost = done && m.w && m.w !== seo;
+      return `<div class="bm-side${won ? " won" : ""}${lost ? " lost" : ""}">${kit(seo)}<span class="nm">${esc(team(seo).name)}</span>
+        <span class="sc">${done || live ? (score ?? "") : ""}</span></div>`;
+    };
+    const top = live ? `<span class="live">${esc(statusText(m))}</span>`
+      : done ? `${esc(shortDay(m.date))}${m.pk ? ", won on penalties" : ""}`
+      : m.date ? `${esc(shortDay(m.date))}${m.tm && m.t ? `, ${esc(localTime(m.t))}` : ""}` : "To be scheduled";
+    const inner = `<div class="bm-when">${top}</div>${side(m.h, m.hs, true)}${side(m.a, m.as, false)}`;
+    return m.id ? `<a class="bm${live ? " is-live" : ""}" href="#/game/${m.id}">${inner}</a>` : `<div class="bm empty">${inner}</div>`;
+  }
+
+  async function viewBracket(id) {
+    setNav("playoffs");
+    await teams();
+    const draw = async (fresh) => {
+      const b = await load(`brackets/${encodeURIComponent(id)}.json`, { fresh });
+      if (!b) { $main.innerHTML = `<div class="empty-state">This bracket isn't available. <a href="#/playoffs">See all playoffs</a></div>`; return; }
+      const rows = Math.max(1, ...b.rounds.map((r) => r.matches.length));
+      const body = b.rounds.length ? `
+        <div class="bracket" style="--rows:${rows}">
+          ${b.rounds.map((r) => `<div class="b-col"><h3>${esc(r.name)}</h3><div class="b-games">${r.matches.map(bracketMatch).join("")}</div></div>`).join("")}
+          ${b.champion ? `<div class="b-col b-champ"><h3>Champion</h3><div class="b-games"><a class="champ" href="#/team/${esc(b.champion)}">${kit(b.champion, true)}<b>${esc(team(b.champion).name)}</b></a></div></div>` : ""}
+        </div>`
+        : `<div class="panel"><h3>Confirmed so far</h3>${(b.qualified || []).map((s) => `<p><a href="#/team/${esc(s)}" style="display:inline-flex;gap:8px;align-items:center">${kit(s)}${esc(team(s).name)}</a></p>`).join("")}
+           <p class="muted">The bracket appears once the first matchups are scheduled.</p></div>`;
+      $main.innerHTML = `
+        <p class="crumb"><a href="#/playoffs">Playoffs</a></p>
+        <section class="po-head">
+          <h1>${esc(tourName(b))}</h1>
+          <p>${esc(divLabel(b.div))}. ${poStatus(b)}</p>
+        </section>
+        ${body}`;
+      const live = b.rounds.some((r) => r.matches.some((m) => m.s === "live"));
+      autoRefresh(() => draw(true), live ? 60000 : 180000);
+    };
+    $main.innerHTML = `<p class="loading">Loading bracket…</p>`;
+    await draw(true);
+  }
+
   // ---------------------------------------------------------------- leaders
   async function viewLeaders(params) {
     setNav("leaders");
@@ -550,6 +643,8 @@
       else if (parts[0] === "player") await viewPlayer(parts[1]);
       else if (parts[0] === "standings") await viewStandings(params);
       else if (parts[0] === "leaders") await viewLeaders(params);
+      else if (parts[0] === "playoffs" && parts[1]) await viewBracket(parts[1]);
+      else if (parts[0] === "playoffs") await viewPlayoffs(params);
       else await viewScores(params);
     } catch (err) {
       console.error(err);

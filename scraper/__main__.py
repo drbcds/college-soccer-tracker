@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from . import db
-from . import njcaa, rosters
+from . import njcaa, rosters, schedules
 from .export import export, export_live
 from .ingest import fetch_details, ingest_scoreboard, needs_detail
 from .ncaa import FeedError, NcaaClient
@@ -169,9 +169,17 @@ def cmd_rosters(con, client, args):
     rosters.fetch_ncaa(con, max_minutes=minutes)
 
 
+def cmd_schedules(con, client, args):
+    if not schedules.in_playoff_window() and not args.season:
+        log.info("schedules: outside the playoff window, skipping")
+        return
+    today = datetime.now(ET).date()
+    schedules.fetch(con, args.season or season_for(today), max_minutes=args.max_minutes or 4)
+
+
 def main():
     ap = argparse.ArgumentParser(prog="scraper")
-    ap.add_argument("command", choices=["season", "live", "livewatch", "backfill", "rosters", "export"])
+    ap.add_argument("command", choices=["season", "live", "livewatch", "backfill", "rosters", "schedules", "export"])
     ap.add_argument("--db", default="db/soccer.sqlite")
     ap.add_argument("--out", default="build/data")
     ap.add_argument("--season", type=int)
@@ -188,7 +196,7 @@ def main():
     if args.command == "export":
         export(con, args.out)
     else:
-        {"season": cmd_season, "live": cmd_live, "backfill": cmd_backfill, "rosters": cmd_rosters,
+        {"season": cmd_season, "live": cmd_live, "backfill": cmd_backfill, "rosters": cmd_rosters, "schedules": cmd_schedules,
          "livewatch": cmd_livewatch}[args.command](con, client, args)
         log.info("%d NCAA and %d NJCAA requests made", client.requests_made, NJ.requests_made)
     con.close()
