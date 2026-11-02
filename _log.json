@@ -1,0 +1,298 @@
+[
+ {
+  "seo": "colgate",
+  "error": "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"
+ },
+ {
+  "seo": "colgate",
+  "error": "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"
+ },
+ {
+  "seo": "boston-u",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 1143442,
+  "final": "https://goterriers.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "bryant",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 799340,
+  "final": "https://bryantbulldogs.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "new-hampshire",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 885017,
+  "final": "https://unhwildcats.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "usc-upstate",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 918534,
+  "final": "https://upstatespartans.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "unc-asheville",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 846516,
+  "final": "https://uncabulldogs.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "duke",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 1029668,
+  "final": "https://goduke.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "clemson",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 404,
+  "bytes": 278279,
+  "final": "https://clemsontigers.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "clemson",
+  "path": "/sports/mens-soccer/schedule",
+  "status": 200,
+  "bytes": 535010,
+  "final": "https://clemsontigers.com/sports/mens-soccer/schedule"
+ },
+ {
+  "seo": "marshall",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 845860,
+  "final": "https://herdzone.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "west-virginia",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 1229719,
+  "final": "https://wvusports.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "providence",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 766702,
+  "final": "https://friars.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "butler",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 595643,
+  "final": "https://butlersports.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "duquesne",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 639900,
+  "final": "https://goduquesne.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "george-washington",
+  "error": "HTTPSConnectionPool(host='gwsports.collegesports.com', port=443): Max retries exceeded with url: /sports/mens-soccer/schedule/2026 (Caused by NameResolutionError(\"HTTPSConnection(host='gwsports.collegesports.com', port=443): Failed to resolve 'gwsports.collegesports.com' ([Errno -2] Name or service not known)\"))"
+ },
+ {
+  "seo": "george-washington",
+  "error": "HTTPSConnectionPool(host='gwsports.collegesports.com', port=443): Max retries exceeded with url: /sports/mens-soccer/schedule (Caused by NameResolutionError(\"HTTPSConnection(host='gwsports.collegesports.com', port=443): Failed to resolve 'gwsports.collegesports.com' ([Errno -2] Name or service not known)\"))"
+ },
+ {
+  "seo": "lock-haven",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 566674,
+  "final": "https://www.lockhavenathletics.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "shepherd",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 597502,
+  "final": "https://shepherdrams.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "wis-parkside",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 588153,
+  "final": "https://parksiderangers.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "northern-mich",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 685965,
+  "final": "https://nmuwildcats.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "saint-leo",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 728024,
+  "final": "https://saintleolions.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "palm-beach-atl",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 621236,
+  "final": "https://pbasailfish.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "saint-michaels",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 749632,
+  "final": "https://smcathletics.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "southern-nh",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 563527,
+  "final": "https://snhupenmen.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "flagler",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 635516,
+  "final": "https://flaglerathletics.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "lander",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 736977,
+  "final": "https://landerbearcats.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "hofstra",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 760931,
+  "final": "https://gohofstra.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "unc-wilmington",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 1387744,
+  "final": "https://uncwsports.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "portland",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 785478,
+  "final": "https://portlandpilots.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "santa-clara",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 764543,
+  "final": "https://santaclarabroncos.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "wisconsin",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 955179,
+  "final": "https://uwbadgers.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "ucla",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 584710,
+  "final": "https://uclabruins.com/sports/mens-soccer/schedule/season/2026"
+ },
+ {
+  "seo": "davis-elkins",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 629299,
+  "final": "https://senatornation.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "salem-intl",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 658985,
+  "final": "https://salemtigers.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "truman",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 676020,
+  "final": "https://trumanbulldogs.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "drury",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 531284,
+  "final": "https://drurypanthers.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "colorado-mines",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 404,
+  "bytes": 10,
+  "final": "https://csmorediggers.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "colorado-mines",
+  "path": "/sports/mens-soccer/schedule",
+  "status": 404,
+  "bytes": 10,
+  "final": "https://csmorediggers.com/sports/mens-soccer/schedule"
+ },
+ {
+  "seo": "westminster-ut",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 645281,
+  "final": "https://westminstergriffins.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "delaware",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 965561,
+  "final": "https://bluehens.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "st-thomas-mn",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 414387,
+  "final": "https://tommiesports.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "green-bay",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 575057,
+  "final": "https://greenbayphoenix.com/sports/mens-soccer/schedule/2026"
+ },
+ {
+  "seo": "oakland",
+  "path": "/sports/mens-soccer/schedule/2026",
+  "status": 200,
+  "bytes": 602451,
+  "final": "https://goldengrizzlies.com/sports/mens-soccer/schedule/2026"
+ }
+]
