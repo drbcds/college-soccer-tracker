@@ -17,7 +17,8 @@ import re
 from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 
-GENERIC = re.compile(r"^(conference tournament|tournament page|championship central)$|information|\bpage\b|central", re.I)
+GENERIC = re.compile(r"^(conference tournament|tournament page|championship central)$|information|\binfo\b|\bpage\b|central|"
+                     r"website|bracket|tickets|\bhome\b|^tournament$|^championships?$", re.I)
 ROUND_WORDS = re.compile(r"\s*[-–:·]?\s*\b(first|second|third|opening|quarter-?|semi-?)?\s*(round|finals?|quarterfinals?|semifinals?)\b.*$", re.I)
 NATIONAL = re.compile(r"\bNCAA\b", re.I)
 MIN_MMDD = "10-15"
@@ -110,8 +111,15 @@ def njcaa_tournaments(con, season: int):
         groups[key].append(g)
     out = []
     for (div, region), games in groups.items():
-        name = f"NJCAA {div_label(div)} National Championship" if region == "national" else f"{region} Tournament"
-        real_games = [g for g in games if g["home"] not in TBD and g["away"] not in TBD]
+        name = f"NJCAA {div_label(div)} inter-region playoffs" if region == "national" else f"{region} Tournament"
+        if region == "national":
+            games = [g for g in games if g.get("round")]      # only games the NJCAA marks as postseason
+        seg = last_segment([g for g in games if g["home"] not in TBD and g["away"] not in TBD])
+        if seg:
+            games = [g for g in games if g["date"] >= seg[0]["date"]]
+        if not games:
+            continue
+        real_games = drop_non_knockout([g for g in games if g["home"] not in TBD and g["away"] not in TBD])
         pending = [(g["away"] if g["home"] in TBD else g["home"], g["date"]) for g in games
                    if (g["home"] in TBD) != (g["away"] in TBD) and g["status"] == "pre"]
         out.append({"key": f"njcaa-{div}-{region}".lower().replace(" ", "-"), "assoc": "njcaa", "div": div,
@@ -120,6 +128,31 @@ def njcaa_tournaments(con, season: int):
 
 
 TBD = {"tbd", None, ""}
+
+
+def last_segment(games: list[dict], gap_days: int = 7) -> list[dict]:
+    """Keep the final run of games; a gap of more than a week means earlier games weren't this tournament."""
+    games = sorted(games, key=lambda g: (g["date"], g["start_epoch"] or 0))
+    start = 0
+    for i in range(1, len(games)):
+        if (_d(games[i]["date"]) - _d(games[i - 1]["date"])).days > gap_days:
+            start = i
+    return games[start:]
+
+
+def drop_non_knockout(games: list[dict]) -> list[dict]:
+    """Drop weakly-tagged games (not marked postseason) whose loser kept playing: not knockout games."""
+    games = sorted(games, key=lambda g: (g["date"], g["start_epoch"] or 0))
+    keep = []
+    for i, g in enumerate(games):
+        if g.get("round") or g["status"] != "final" or g["home_score"] is None or g["home_score"] == g["away_score"]:
+            keep.append(g)
+            continue
+        loser = g["away"] if g["home_score"] > g["away_score"] else g["home"]
+        if any(loser in (h["home"], h["away"]) for h in games[i + 1:]):
+            continue
+        keep.append(g)
+    return keep
 
 
 def div_label(div) -> str:
@@ -195,11 +228,19 @@ def build(t: dict, today: str) -> dict | None:
     by_date = defaultdict(list)
     for e in entries:
         by_date[e["date"]].append(e)
+    done_by_date = []          # (date, round) of entries already placed
     for d in sorted(by_date):
         day = by_date[d]
+        # Rounds are played on different days: anything 2+ days after round k is at least round k+1
+        # (this places teams with a bye in the round they enter).
+        # A team with a bye (known only from its schedule page) enters after the games already
+        # played: anything 2+ days after round k is at least round k+1.
+        floor = 1 + max([r for dd, r in done_by_date if (_d(d) - _d(dd)).days >= 2] or [0])
         for e in day:
             sides = [e["g"]["home"], e["g"]["away"]] if e["kind"] == "game" else [e["team"]]
             e["round"] = 1 + max([last_round[s] for s in sides if real(s)] or [0])
+            if e["kind"] == "pending":
+                e["round"] = max(e["round"], floor)
         if any(e["kind"] == "game" for e in day):
             top = max(e["round"] for e in day)
             for e in day:
@@ -209,6 +250,7 @@ def build(t: dict, today: str) -> dict | None:
             for s in sides:
                 if real(s):
                     last_round[s] = e["round"]
+            done_by_date.append((d, e["round"]))
     used = sorted({e["round"] for e in entries})
     remap = {r: i + 1 for i, r in enumerate(used)}
     for e in entries:
